@@ -37,7 +37,7 @@ echo "==> 🔑 Copy \`.env\` to server"
 scp "$ENV_LOCAL_PATH" "${SERVER_USER}@${SERVER_HOST}:~/${SERVER_PATH}/.env" >/dev/null 2>&1
 ssh "${SERVER_USER}@${SERVER_HOST}" "chmod 600 ~/${SERVER_PATH}/.env" >/dev/null 2>&1
 
-echo "==> ⚙️ Build and run the container"
+echo "==> 🚀 Build and run the container"
 ssh "${SERVER_USER}@${SERVER_HOST}" << EOF >/dev/null 2>&1
 set -euo pipefail
 APPDIR="\$HOME/${SERVER_PATH}"

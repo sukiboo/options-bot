@@ -1,19 +1,18 @@
 from __future__ import annotations
 
 import logging
-import os
 import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-LOG_DIR = Path(os.getenv("LOG_DIR", "logs"))
+LOG_DIR = Path("logs")
 
 
 def setup_logger() -> logging.Logger:
     LOG_DIR.mkdir(parents=True, exist_ok=True)
     log_file = LOG_DIR / f"{datetime.now(timezone.utc).strftime('%Y-%m')}.log"
 
-    logger = logging.getLogger("notify_bot")
+    logger = logging.getLogger()
     logger.setLevel(logging.INFO)
     logger.handlers.clear()  # avoid duplicate handlers on reloads
 

@@ -11,7 +11,7 @@ LOG_DIR = Path(os.getenv("LOG_DIR", "logs"))
 
 def setup_logger() -> logging.Logger:
     LOG_DIR.mkdir(parents=True, exist_ok=True)
-    log_file = LOG_DIR / f"{datetime.now(timezone.utc).strftime('%Y-%m-%d')}.log"
+    log_file = LOG_DIR / f"{datetime.now(timezone.utc).strftime('%Y-%m')}.log"
 
     logger = logging.getLogger("notify_bot")
     logger.setLevel(logging.INFO)

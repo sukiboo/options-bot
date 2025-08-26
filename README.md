@@ -11,6 +11,17 @@ The bot can be delpoyed on the server with `deploy.sh` script:
 This will copy local `.env` file to the server, pull the latest repo, rebuild and run the docker container.
 
 
+### Server Setup
+If docker/git is not installed:
+```
+sudo apt-get update
+sudo apt-get install -y docker.io git
+sudo systemctl enable --now docker
+sudo usermod -aG docker $USER
+newgrp docker
+```
+
+
 ### Docker Commands
 - Remove container
 ```

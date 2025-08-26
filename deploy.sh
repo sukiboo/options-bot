@@ -16,41 +16,41 @@ if [[ ! -f "$ENV_LOCAL_PATH" ]]; then
 fi
 
 echo "==> Pull latest code on server"
-ssh "${SERVER_USER}@${SERVER_HOST}" bash -lc "
+ssh "${SERVER_USER}@${SERVER_HOST}" 'bash -lc "
   set -euo pipefail
-  APPDIR=\"\$HOME/${SERVER_PATH}\"
+  APPDIR=\"$HOME/'"${SERVER_PATH}"'\"
 
   # Clone or update repo
-  if [[ ! -d \"\$APPDIR/.git\" ]]; then
-    git clone \"${REPO_URL}\" \"\$APPDIR\"
+  if [[ ! -d \"$APPDIR/.git\" ]]; then
+    git clone \"'"${REPO_URL}"'\" \"$APPDIR\"
   fi
-  git -C \"\$APPDIR\" fetch --prune --tags
+  git -C \"$APPDIR\" fetch --prune --tags
   # checkout default branch (origin/HEAD) and pull
-  DEFAULT_BRANCH=\$(git -C \"\$APPDIR\" rev-parse --abbrev-ref origin/HEAD | sed \"s|origin/||\")
-  git -C \"\$APPDIR\" checkout -q \"\$DEFAULT_BRANCH\"
-  git -C \"\$APPDIR\" pull --ff-only
-"
+  DEFAULT_BRANCH=$(git -C \"$APPDIR\" rev-parse --abbrev-ref origin/HEAD | sed \"s|origin/||\")
+  git -C \"$APPDIR\" checkout -q \"$DEFAULT_BRANCH\"
+  git -C \"$APPDIR\" pull --ff-only
+"'
 
 echo "==> Copy `.env` to server"
 scp "$ENV_LOCAL_PATH" "${SERVER_USER}@${SERVER_HOST}:~/${SERVER_PATH}/.env"
 ssh "${SERVER_USER}@${SERVER_HOST}" "chmod 600 ~/${SERVER_PATH}/.env"
 
 echo "==> Build and run on server"
-ssh "${SERVER_USER}@${SERVER_HOST}" bash -lc "
+ssh "${SERVER_USER}@${SERVER_HOST}" 'bash -lc "
   set -euo pipefail
-  APPDIR=\"\$HOME/${SERVER_PATH}\"
+  APPDIR=\"$HOME/'"${SERVER_PATH}"'\"
 
   # Build fresh image
-  docker rm -f \"${IMAGE_NAME}\" >/dev/null 2>&1 || true
-  cd \"\$APPDIR\"
-  docker build -t \"${IMAGE_NAME}:latest\" .
+  docker rm -f \"'"${IMAGE_NAME}"'\" >/dev/null 2>&1 || true
+  cd \"$APPDIR\"
+  docker build -t \"'"${IMAGE_NAME}"':latest\" .
 
   # One-shot run: sends message then exits; --rm cleans container
   docker run --rm \\
-    --name \"${IMAGE_NAME}\" \\
-    --env-file \"\$APPDIR/.env\" \\
-    -v \"\$APPDIR/logs:/app/logs\" \\
-    \"${IMAGE_NAME}:latest\"
-"
+    --name \"'"${IMAGE_NAME}"'\" \\
+    --env-file \"$APPDIR/.env\" \\
+    -v \"$APPDIR/logs:/app/logs\" \\
+    \"'"${IMAGE_NAME}"':latest\"
+"'
 
 echo "==> Done"

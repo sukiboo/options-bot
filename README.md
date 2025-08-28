@@ -15,7 +15,7 @@ This will copy local `.env` file to the server, pull the latest repo, rebuild an
 If docker/git is not installed:
 ```
 sudo apt-get update
-sudo apt-get install -y docker.io git
+sudo apt-get install -y docker.io docker-compose-plugin git
 sudo systemctl enable --now docker
 sudo usermod -aG docker $USER
 newgrp docker

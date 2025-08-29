@@ -1,6 +1,6 @@
 # Options Bot
 
-A simple bot for an automated options trading on IBKR.
+A simple bot for automated options trading on ~~IBKR~~ Alpaca.
 
 
 ### Deployment Commands
@@ -15,7 +15,7 @@ This will copy local `.env` file to the server, pull the latest repo, rebuild an
 If docker/git is not installed:
 ```
 sudo apt-get update
-sudo apt-get install -y docker.io docker-compose-plugin git
+sudo apt-get install -y docker.io git
 sudo systemctl enable --now docker
 sudo usermod -aG docker $USER
 newgrp docker

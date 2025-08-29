@@ -31,6 +31,6 @@ class TelegramBot:
     def send_message(self, msg: str) -> None:
         try:
             self.bot.send_message(chat_id=self.chat_id, text=msg)
-            logger.info("[telegram] sent: %s", msg)
+            logger.info("[telegram]: %s", msg)
         except Exception as e:
             logger.error("[telegram] error: %s", e)

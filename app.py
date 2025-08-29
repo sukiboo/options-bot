@@ -21,7 +21,9 @@ class OptionsBot:
 
     def report(self) -> None:
         value = self.alpaca_client.get_portfolio_value()
+        positions = self.alpaca_client.get_positions()
         self.telegram_bot.send_message(msg=f"portfolio value: ${value:,.2f}")
+        self.telegram_bot.send_message(msg=f"positions: {positions}")
 
 
 if __name__ == "__main__":

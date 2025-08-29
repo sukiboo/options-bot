@@ -1,16 +1,14 @@
 from __future__ import annotations
 
 import logging
+import os
 import time
 from datetime import datetime, timezone
-from pathlib import Path
-
-LOG_DIR = Path("logs")
 
 
-def setup_logger() -> logging.Logger:
-    LOG_DIR.mkdir(parents=True, exist_ok=True)
-    log_file = LOG_DIR / f"{datetime.now(timezone.utc).strftime('%Y-%m')}.log"
+def setup_logger(log_dir: str = "logs") -> logging.Logger:
+    os.makedirs(log_dir, exist_ok=True)
+    log_file = os.path.join(log_dir, f"{datetime.now(timezone.utc).strftime('%Y-%m')}.log")
 
     logger = logging.getLogger()
     logger.setLevel(logging.INFO)

@@ -6,7 +6,7 @@ from functools import cached_property
 from typing import cast
 
 from alpaca.trading.client import TradingClient
-from alpaca.trading.models import TradeAccount
+from alpaca.trading.models import Position, TradeAccount
 
 from src.constants import PAPER_TRADING
 
@@ -35,10 +35,10 @@ class AlpacaClient:
 
     @cached_property
     def account(self) -> TradeAccount:
-        acct = self.client.get_account()
-        if not isinstance(acct, TradeAccount):
-            raise TypeError(f"Expected TradeAccount, got {type(acct).__name__}")
-        return cast(TradeAccount, acct)
+        account = self.client.get_account()
+        if not isinstance(account, TradeAccount):
+            raise TypeError(f"Expected TradeAccount, got {type(account).__name__}")
+        return cast(TradeAccount, account)
 
     def refresh_account(self) -> None:
         self.__dict__.pop("account", None)
@@ -49,3 +49,19 @@ class AlpacaClient:
             raise RuntimeError("Portfolio value is unavailable!")
         self.refresh_account()
         return float(portfolio_value)
+
+    def get_positions(self) -> list[dict[str, str | None]]:
+        return [
+            {
+                "symbol": self.account.currency,
+                "qty": self.account.cash,
+                "price": "1.00",
+            }
+        ] + [
+            {
+                "symbol": p.symbol,
+                "qty": p.qty,
+                "price": p.current_price,
+            }
+            for p in cast(list[Position], self.client.get_all_positions())
+        ]

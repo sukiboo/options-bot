@@ -12,18 +12,27 @@ class OptionsBot:
     def __init__(self) -> None:
         logger.info(f"{BOT_NAME} initializing...")
         self.setup()
-        self.report()
+        self.report_positions()
+        self.report_value()
 
     def setup(self) -> None:
         self.telegram_bot = TelegramBot()
         self.alpaca_client = AlpacaClient()
         self.telegram_bot.send_message(msg=f"{BOT_NAME} is running!")
 
-    def report(self) -> None:
-        value = self.alpaca_client.get_portfolio_value()
-        positions = self.alpaca_client.get_positions()
-        self.telegram_bot.send_message(msg=f"portfolio value: ${value:,.2f}")
+    def report_positions(self) -> None:
+        positions = self.alpaca_client.positions
+        logger.info(f"positions: {positions}")
         self.telegram_bot.send_message(msg=f"positions: {positions}")
+
+    def report_value(self) -> None:
+        value = self.alpaca_client.portfolio_value
+        logger.info(f"portfolio value: ${value:,.2f}")
+        self.telegram_bot.send_message(msg=f"portfolio value: ${value:,.2f}")
+
+    def trade_options(self) -> None:
+        self.alpaca_client.trade_options()
+        self.report_positions()
 
 
 if __name__ == "__main__":

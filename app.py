@@ -14,6 +14,7 @@ class OptionsBot:
         self.setup()
         self.report_positions()
         self.report_value()
+        self.trade_options()
 
     def setup(self) -> None:
         self.telegram_bot = TelegramBot()

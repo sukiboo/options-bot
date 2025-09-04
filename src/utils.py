@@ -5,6 +5,10 @@ import os
 import time
 from datetime import datetime, timezone
 
+import pytz  # type: ignore
+
+logger = logging.getLogger()
+
 
 def setup_logger(log_dir: str = "logs") -> logging.Logger:
     os.makedirs(log_dir, exist_ok=True)
@@ -35,3 +39,33 @@ def setup_logger(log_dir: str = "logs") -> logging.Logger:
     logger.addHandler(fh)
     logger.addHandler(sh)
     return logger
+
+
+def parse_run_times() -> list[str]:
+    """Parse and validate RUN_TIMES from environment variable."""
+    run_times = [t.strip() for t in os.getenv("RUN_TIMES", "").split(",") if t.strip()]
+
+    if not run_times:
+        raise ValueError(
+            "No RUN_TIMES specified, set RUN_TIMES environment variable (e.g., '09:30,15:30')"
+        )
+
+    for time_str in run_times:
+        try:
+            datetime.strptime(time_str, "%H:%M")
+        except ValueError:
+            raise ValueError(
+                f"Invalid time format: {time_str}. Expected format: HH:MM (e.g., '09:30')"
+            )
+
+    return run_times
+
+
+def get_timezone() -> pytz.BaseTzInfo:
+    """Parse and validate timezone from environment variable."""
+    timezone_env = os.getenv("TZ", "America/New_York")
+    try:
+        return pytz.timezone(timezone_env)
+    except pytz.UnknownTimeZoneError:
+        logger.warning(f"Unknown timezone '{timezone_env}'. Using 'America/New_York' as fallback.")
+        return pytz.timezone("America/New_York")

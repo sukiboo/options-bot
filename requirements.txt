@@ -1,3 +1,5 @@
 alpaca-py
 python-telegram-bot==13.15
 urllib3>=1.26,<2
+pytz
+schedule

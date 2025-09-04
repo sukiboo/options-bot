@@ -3,12 +3,12 @@ from __future__ import annotations
 import logging
 import os
 from datetime import date, timedelta
-from typing import Literal, cast
+from typing import cast
 
 from alpaca.data.historical import StockHistoricalDataClient
 from alpaca.data.requests import StockLatestTradeRequest
 from alpaca.trading.client import TradingClient
-from alpaca.trading.enums import ContractType, OrderSide, TimeInForce
+from alpaca.trading.enums import AssetClass, ContractType, OrderSide, TimeInForce
 from alpaca.trading.models import OptionContract, Position, TradeAccount
 from alpaca.trading.requests import GetOptionContractsRequest, MarketOrderRequest
 
@@ -61,13 +61,6 @@ class AlpacaClient:
             raise RuntimeError("Portfolio value is unavailable!")
         return float(portfolio_value)
 
-    # TODO: change trade conditions
-    def trade_options(self) -> None:
-        if TICKER in self.positions and int(self.positions[TICKER]["qty"] or "0") >= 100:
-            self.sell_covered_calls(TICKER)
-        else:
-            self.sell_covered_puts(TICKER)
-
     def get_ticker_price(self, ticker: str) -> float:
         latest_trade = self.data_client.get_stock_latest_trade(
             StockLatestTradeRequest(symbol_or_symbols=ticker)
@@ -78,27 +71,29 @@ class AlpacaClient:
             raise RuntimeError(f"Ticker price is unavailable for `{ticker}`!")
         return ticker_price
 
+    def get_expiration_date(self) -> date:
+        """Return the next Friday expiration date."""
+        return date.today() + timedelta(days=(4 - date.today().weekday()) % 7 or 7)
+
+    def have_option_contracts(self, ticker: str) -> bool:
+        return any(
+            p.symbol.startswith(ticker) and p.asset_class == AssetClass.US_OPTION
+            for p in cast(list[Position], self.client.get_all_positions())
+        )
+
     def get_option_contract(
-        self, ticker: str, option_type: Literal["call", "put"]
+        self,
+        ticker: str,
+        expiration_date: date,
+        price_gte: float,
+        option_type: ContractType,
     ) -> OptionContract:
-        expiration_date = date.today() + timedelta(days=(4 - date.today().weekday()) % 7 or 7)
-        ticker_price = self.get_ticker_price(ticker)
-
-        if option_type == "call":
-            contract_type = ContractType.CALL
-            strike_price = (1 + OTM_MARGIN_CALL) * ticker_price
-        elif option_type == "put":
-            contract_type = ContractType.PUT
-            strike_price = (1 - OTM_MARGIN_PUT) * ticker_price
-        else:
-            raise ValueError(f"Invalid option type: `{option_type}`!")
-
         contracts = self.client.get_option_contracts(
             GetOptionContractsRequest(
                 underlying_symbols=[ticker],
                 expiration_date=expiration_date,
-                type=contract_type,
-                strike_price_gte=str(strike_price),
+                type=option_type,
+                strike_price_gte=str(price_gte),
                 limit=1000,
             )
         )
@@ -112,32 +107,64 @@ class AlpacaClient:
 
         return option_contracts[0]
 
-    # TODO: print confirmations
+    # TODO: print confirmations on successful trades
+    def trade_options(self) -> None:
+        if self.have_option_contracts(TICKER):
+            logger.debug("Options are in portfolio already, skipping options trade.")
+            return
+        elif TICKER in self.positions:
+            self.sell_covered_calls(TICKER)
+        else:
+            self.sell_covered_puts(TICKER)
+
     def sell_covered_calls(self, ticker: str) -> None:
-        call_contract = self.get_option_contract(ticker, "call")
-        contract_qty = int(self.positions[ticker]["qty"] or "0") // 100
-        logger.info(f"Selling {contract_qty} calls for {ticker}:\n{call_contract}")
-        self.client.submit_order(
-            MarketOrderRequest(
-                symbol=call_contract.symbol,
-                qty=contract_qty,
-                side=OrderSide.SELL,
-                time_in_force=TimeInForce.DAY,
-            )
+        ticker_qty = int(self.positions[ticker]["qty"] or "0")
+        if ticker_qty < 100:
+            logger.debug(f"Only have {ticker_qty} shares of {ticker}, skipping covered call trade.")
+            return
+
+        expiration_date = self.get_expiration_date()
+        ticker_price = self.get_ticker_price(ticker)
+        strike_price = (1 + OTM_MARGIN_CALL) * ticker_price
+        call_contract = self.get_option_contract(
+            ticker, expiration_date, strike_price, ContractType.CALL
         )
 
-    # TODO: print confirmations
+        call_contract_qty = int(ticker_qty / 100)
+        logger.info(f"Selling {call_contract_qty} calls for {ticker}:\n{call_contract}")
+        self.submit_sell_order(call_contract.symbol, call_contract_qty)
+
     def sell_covered_puts(self, ticker: str) -> None:
-        put_contract = self.get_option_contract(ticker, "put")
-        contract_qty = (
-            int(self.positions["USD"]["qty"] or "0") / self.get_ticker_price(ticker) // 100
+        cash = int(self.positions["USD"]["qty"] or "0")
+        ticker_price = self.get_ticker_price(ticker)
+        if cash < 100 * ticker_price:
+            logger.debug(
+                f"Only have enought cash for {cash / ticker_price:.2f} "
+                f"shares of {ticker}, skipping covered put trade."
+            )
+            return
+
+        expiration_date = self.get_expiration_date()
+        strike_price = (1 - OTM_MARGIN_PUT) * ticker_price
+        put_contract = self.get_option_contract(
+            ticker, expiration_date, strike_price, ContractType.PUT
         )
-        logger.info(f"Selling {contract_qty} puts for {ticker}:\n{put_contract}")
-        self.client.submit_order(
+
+        put_contract_qty = int(cash / strike_price / 100)
+        logger.debug(f"Selling {put_contract_qty} puts for {ticker}:\n{put_contract}")
+        self.submit_sell_order(put_contract.symbol, put_contract_qty)
+
+    def submit_sell_order(self, symbol: str, qty: int) -> None:
+        logger.info(f"Selling {qty} shares of {symbol}...")
+        order = self.client.submit_order(
             MarketOrderRequest(
-                symbol=put_contract.symbol,
-                qty=contract_qty,
+                symbol=symbol,
+                qty=qty,
                 side=OrderSide.SELL,
                 time_in_force=TimeInForce.DAY,
             )
         )
+        if order:
+            logger.info(f"Order submitted successfully: {order}")
+        else:
+            logger.error(f"Order submission failed: {order}")

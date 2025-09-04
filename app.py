@@ -47,8 +47,8 @@ class OptionsBot:
 
     def _run_checks(self, run_time: str) -> None:
         logger.debug(
-            f"Executing checking tasks at"
-            f"{datetime.now(self.timezone).strftime('%H:%M:%S')}"
+            f"Executing checking tasks at "
+            f"{datetime.now(self.timezone).strftime('%H:%M:%S')} "
             f"(scheduled for {run_time})..."
         )
         try:
@@ -62,8 +62,8 @@ class OptionsBot:
 
     def _run_trades(self, run_time: str) -> None:
         logger.debug(
-            f"Executing trading tasks at"
-            f"{datetime.now(self.timezone).strftime('%H:%M:%S')}"
+            f"Executing trading tasks at "
+            f"{datetime.now(self.timezone).strftime('%H:%M:%S')} "
             f"(scheduled for {run_time})..."
         )
         try:

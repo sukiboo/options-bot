@@ -45,7 +45,6 @@ class OptionsBot:
             f"{datetime.now(self.timezone).strftime('%H:%M:%S')}"
             f"(scheduled for {run_time})..."
         )
-
         try:
             self.report_positions()
             self.report_value()

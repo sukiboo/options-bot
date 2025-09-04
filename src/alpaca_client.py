@@ -61,6 +61,7 @@ class AlpacaClient:
             raise RuntimeError("Portfolio value is unavailable!")
         return float(portfolio_value)
 
+    # TODO: change trade conditions
     def trade_options(self) -> None:
         if TICKER in self.positions and int(self.positions[TICKER]["qty"] or "0") >= 100:
             self.sell_covered_calls(TICKER)

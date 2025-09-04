@@ -53,8 +53,8 @@ class OptionsBot:
             f"(scheduled for {run_time})..."
         )
         try:
-            self.report_positions()
-            self.report_value()
+            self.report_positions(telegram=False)
+            self.report_value(telegram=False)
             logger.debug(f"Successfully completed all checking tasks for {run_time}!")
         except Exception as e:
             error_msg = f"Error during checking execution at {run_time}: {e}"
@@ -68,27 +68,29 @@ class OptionsBot:
             f"(scheduled for {run_time})..."
         )
         try:
-            self.trade_options()
+            self.trade_options(telegram=True)
             logger.debug(f"Successfully completed all trading tasks for {run_time}!")
         except Exception as e:
             error_msg = f"Error during trading execution at {run_time}: {e}"
             logger.error(error_msg)
             self.telegram_bot.send_message(msg=f"⚠️ {error_msg}")
 
-    def report_positions(self) -> None:
+    def report_positions(self, telegram: bool = False) -> None:
         positions = self.alpaca_client.positions
         logger.info(f"positions: {positions}")
-        self.telegram_bot.send_message(msg=f"positions: {positions}")
+        if telegram:
+            self.telegram_bot.send_message(msg=f"positions: {positions}")
 
-    def report_value(self) -> None:
+    def report_value(self, telegram: bool = False) -> None:
         value = self.alpaca_client.portfolio_value
         logger.info(f"portfolio value: ${value:,.2f}")
-        self.telegram_bot.send_message(msg=f"portfolio value: ${value:,.2f}")
+        if telegram:
+            self.telegram_bot.send_message(msg=f"portfolio value: ${value:,.2f}")
 
-    def trade_options(self) -> None:
+    def trade_options(self, telegram: bool = False) -> None:
         self.alpaca_client.trade_options()
         time.sleep(60)
-        self.report_positions()
+        self.report_positions(telegram=telegram)
 
 
 if __name__ == "__main__":

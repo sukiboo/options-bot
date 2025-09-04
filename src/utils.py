@@ -36,6 +36,11 @@ def setup_logger(log_dir: str = "logs", level: int = logging.DEBUG) -> logging.L
 
     logger.addHandler(fh)
     logger.addHandler(sh)
+
+    # Silence third-party library debug logs
+    for lib in ["telegram", "telegram.bot", "telegram.ext"]:
+        logging.getLogger(lib).setLevel(logging.WARNING)
+
     return logger
 
 

@@ -107,50 +107,52 @@ class AlpacaClient:
 
         return option_contracts[0]
 
-    # TODO: print confirmations on successful trades
     def trade_options(self) -> None:
         if self.have_option_contracts(TICKER):
             logger.debug("Options are in portfolio already, skipping options trade.")
             return
-        elif TICKER in self.positions:
-            self.sell_covered_calls(TICKER)
-        else:
-            self.sell_covered_puts(TICKER)
-
-    def sell_covered_calls(self, ticker: str) -> None:
-        ticker_qty = int(self.positions[ticker]["qty"] or "0")
-        if ticker_qty < 100:
-            logger.debug(f"Only have {ticker_qty} shares of {ticker}, skipping covered call trade.")
-            return
 
         expiration_date = self.get_expiration_date()
-        ticker_price = self.get_ticker_price(ticker)
-        strike_price = (1 + OTM_MARGIN_CALL) * ticker_price
+        ticker_price = self.get_ticker_price(TICKER)
+
+        if TICKER in self.positions:
+            strike_price = (1 + OTM_MARGIN_CALL) * ticker_price
+            self.sell_covered_calls(TICKER, expiration_date, strike_price)
+        else:
+            strike_price = (1 - OTM_MARGIN_PUT) * ticker_price
+            self.sell_covered_puts(TICKER, expiration_date, strike_price)
+
+    def sell_covered_calls(self, ticker: str, expiration_date: date, strike_price: float) -> None:
+        ticker_qty = int(self.positions[ticker]["qty"] or "0")
+        if ticker_qty < 100:
+            logger.debug(
+                f"Only have {ticker_qty} shares of {ticker}, "
+                f"not enough for the covered call trade."
+            )
+            return
+
+        call_contract_qty = int(ticker_qty / 100)
         call_contract = self.get_option_contract(
             ticker, expiration_date, strike_price, ContractType.CALL
         )
 
-        call_contract_qty = int(ticker_qty / 100)
-        logger.info(f"Selling {call_contract_qty} calls for {ticker}:\n{call_contract}")
+        logger.debug(f"Selling {call_contract_qty} calls for {ticker}:\n{call_contract}")
         self.submit_sell_order(call_contract.symbol, call_contract_qty)
 
-    def sell_covered_puts(self, ticker: str) -> None:
+    def sell_covered_puts(self, ticker: str, expiration_date: date, strike_price: float) -> None:
         cash = int(self.positions["USD"]["qty"] or "0")
-        ticker_price = self.get_ticker_price(ticker)
-        if cash < 100 * ticker_price:
+        if cash < 100 * strike_price:
             logger.debug(
-                f"Only have enought cash for {cash / ticker_price:.2f} "
-                f"shares of {ticker}, skipping covered put trade."
+                f"Only have cash for {cash / strike_price:.2f} shares "
+                f"of {ticker}, not enough for the covered put trade."
             )
             return
 
-        expiration_date = self.get_expiration_date()
-        strike_price = (1 - OTM_MARGIN_PUT) * ticker_price
+        put_contract_qty = int(cash / strike_price / 100)
         put_contract = self.get_option_contract(
             ticker, expiration_date, strike_price, ContractType.PUT
         )
 
-        put_contract_qty = int(cash / strike_price / 100)
         logger.debug(f"Selling {put_contract_qty} puts for {ticker}:\n{put_contract}")
         self.submit_sell_order(put_contract.symbol, put_contract_qty)
 

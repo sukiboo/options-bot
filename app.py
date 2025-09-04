@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import time
 from datetime import datetime
 
@@ -10,7 +11,7 @@ from src.constants import BOT_NAME
 from src.telegram_bot import TelegramBot
 from src.utils import get_timezone, parse_run_times, setup_logger
 
-logger = setup_logger()
+logger = setup_logger(level=logging.DEBUG)
 
 
 class OptionsBot:

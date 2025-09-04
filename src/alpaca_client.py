@@ -136,7 +136,7 @@ class AlpacaClient:
             ticker, expiration_date, strike_price, ContractType.CALL
         )
 
-        logger.debug(f"Selling {call_contract_qty} calls for {ticker}:\n{call_contract}")
+        logger.debug(f"Selling {call_contract_qty} calls for {ticker}: {call_contract}")
         self.submit_sell_order(call_contract.symbol, call_contract_qty)
 
     def sell_covered_puts(self, ticker: str, expiration_date: date, strike_price: float) -> None:
@@ -153,7 +153,7 @@ class AlpacaClient:
             ticker, expiration_date, strike_price, ContractType.PUT
         )
 
-        logger.debug(f"Selling {put_contract_qty} puts for {ticker}:\n{put_contract}")
+        logger.debug(f"Selling {put_contract_qty} puts for {ticker}: {put_contract}")
         self.submit_sell_order(put_contract.symbol, put_contract_qty)
 
     def submit_sell_order(self, symbol: str, qty: int) -> None:

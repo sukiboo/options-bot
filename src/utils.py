@@ -8,12 +8,12 @@ from datetime import datetime, timezone
 import pytz  # type: ignore
 
 
-def setup_logger(log_dir: str = "logs") -> logging.Logger:
+def setup_logger(log_dir: str = "logs", level: int = logging.DEBUG) -> logging.Logger:
     os.makedirs(log_dir, exist_ok=True)
     log_file = os.path.join(log_dir, f"{datetime.now(timezone.utc).strftime('%Y-%m')}.log")
 
     logger = logging.getLogger()
-    logger.setLevel(logging.INFO)
+    logger.setLevel(level)
     logger.handlers.clear()  # avoid duplicate handlers on reloads
 
     # Make logging timestamps UTC
@@ -26,12 +26,12 @@ def setup_logger(log_dir: str = "logs") -> logging.Logger:
 
     # File handler
     fh = logging.FileHandler(log_file, encoding="utf-8")
-    fh.setLevel(logging.INFO)
+    fh.setLevel(level)
     fh.setFormatter(formatter)
 
     # Stdout handler
     sh = logging.StreamHandler()
-    sh.setLevel(logging.INFO)
+    sh.setLevel(level)
     sh.setFormatter(formatter)
 
     logger.addHandler(fh)

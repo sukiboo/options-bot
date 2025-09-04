@@ -47,9 +47,9 @@ docker rm -f "${IMAGE_NAME}" >/dev/null 2>&1 || true
 cd "\$APPDIR"
 docker build -t "${IMAGE_NAME}:latest" .
 
-# One-shot run: sends message then exits; --rm cleans container
-docker run --rm \\
-  --name "${IMAGE_NAME}" \\
+# Run continuously with auto-restart
+docker run -d --name "${IMAGE_NAME}" \\
+  --restart unless-stopped \\
   --env-file "\$APPDIR/.env" \\
   -v "\$APPDIR/logs:/app/logs" \\
   "${IMAGE_NAME}:latest"

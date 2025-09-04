@@ -23,19 +23,36 @@ newgrp docker
 
 
 ### Docker Commands
-- Remove container
+- Stop and remove container
 ```
-docker rm -f options-bot
+docker stop options-bot
+docker rm options-bot
 ```
 - Rebuild image
 ```
 docker build -t options-bot:latest .
 ```
-- Run container
+- Run container (continuous with auto-restart)
 ```
-docker run --rm --env-file .env -v "$(pwd)/logs:/app/logs" options-bot:latest
+docker run -d --name options-bot \
+  --restart unless-stopped \
+  --env-file .env \
+  -v "$(pwd)/logs:/app/logs" \
+  options-bot:latest
+```
+- Check container status
+```
+docker ps
 ```
 - Check logs
 ```
 docker logs -f options-bot
+```
+- Stop container
+```
+docker stop options-bot
+```
+- Start container
+```
+docker start options-bot
 ```

@@ -21,8 +21,9 @@ class OptionsBot:
 
     def setup(self) -> None:
         try:
-            self.run_times = parse_run_times()
             self.timezone = get_timezone()
+            self.check_times = parse_run_times("CHECK_TIMES")
+            self.trade_times = parse_run_times("TRADE_TIMES")
         except ValueError as e:
             logger.error(str(e))
             return
@@ -32,26 +33,44 @@ class OptionsBot:
         self.telegram_bot.send_message(msg=f"{BOT_NAME} is running!")
 
     def run(self) -> None:
-        logger.debug(f"Scheduling tasks for times: {self.run_times} {self.timezone}")
-        for run_time in self.run_times:
-            schedule.every().day.at(run_time, self.timezone.zone).do(self._run_tasks, run_time)
+        logger.debug(f"Scheduling checking for times: {self.check_times} {self.timezone}")
+        for run_time in self.check_times:
+            schedule.every().day.at(run_time, self.timezone.zone).do(self._run_checks, run_time)
+
+        logger.debug(f"Scheduling trading for times: {self.trade_times} {self.timezone}")
+        for run_time in self.trade_times:
+            schedule.every().day.at(run_time, self.timezone.zone).do(self._run_trades, run_time)
+
         while True:
             schedule.run_pending()
             time.sleep(10)
 
-    def _run_tasks(self, run_time: str) -> None:
+    def _run_checks(self, run_time: str) -> None:
         logger.debug(
-            f"Executing daily tasks at"
+            f"Executing checking tasks at"
             f"{datetime.now(self.timezone).strftime('%H:%M:%S')}"
             f"(scheduled for {run_time})..."
         )
         try:
             self.report_positions()
             self.report_value()
-            self.trade_options()
-            logger.debug(f"Successfully completed all tasks for {run_time}!")
+            logger.debug(f"Successfully completed all checking tasks for {run_time}!")
         except Exception as e:
-            error_msg = f"Error during daily tasks execution at {run_time}: {e}"
+            error_msg = f"Error during checking execution at {run_time}: {e}"
+            logger.error(error_msg)
+            self.telegram_bot.send_message(msg=f"⚠️ {error_msg}")
+
+    def _run_trades(self, run_time: str) -> None:
+        logger.debug(
+            f"Executing trading tasks at"
+            f"{datetime.now(self.timezone).strftime('%H:%M:%S')}"
+            f"(scheduled for {run_time})..."
+        )
+        try:
+            self.trade_options()
+            logger.debug(f"Successfully completed all trading tasks for {run_time}!")
+        except Exception as e:
+            error_msg = f"Error during trading execution at {run_time}: {e}"
             logger.error(error_msg)
             self.telegram_bot.send_message(msg=f"⚠️ {error_msg}")
 
@@ -67,6 +86,7 @@ class OptionsBot:
 
     def trade_options(self) -> None:
         self.alpaca_client.trade_options()
+        time.sleep(60)
         self.report_positions()
 
 

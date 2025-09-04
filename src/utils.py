@@ -7,8 +7,6 @@ from datetime import datetime, timezone
 
 import pytz  # type: ignore
 
-logger = logging.getLogger()
-
 
 def setup_logger(log_dir: str = "logs") -> logging.Logger:
     os.makedirs(log_dir, exist_ok=True)
@@ -41,13 +39,22 @@ def setup_logger(log_dir: str = "logs") -> logging.Logger:
     return logger
 
 
-def parse_run_times() -> list[str]:
-    """Parse and validate RUN_TIMES from environment variable."""
-    run_times = [t.strip() for t in os.getenv("RUN_TIMES", "").split(",") if t.strip()]
+def get_timezone() -> pytz.BaseTzInfo:
+    """Parse and validate timezone from environment variable."""
+    timezone_env = os.getenv("TZ", "America/New_York")
+    try:
+        return pytz.timezone(timezone_env)
+    except pytz.UnknownTimeZoneError:
+        return pytz.timezone("America/New_York")
+
+
+def parse_run_times(env_var: str) -> list[str]:
+    """Parse and validate `env_var` from environment variable."""
+    run_times = [t.strip() for t in os.getenv(env_var, "").split(",") if t.strip()]
 
     if not run_times:
         raise ValueError(
-            "No RUN_TIMES specified, set RUN_TIMES environment variable (e.g., '09:30,15:30')"
+            f"No {env_var} specified, set {env_var} environment variable (e.g., '09:30,15:30')"
         )
 
     for time_str in run_times:
@@ -59,13 +66,3 @@ def parse_run_times() -> list[str]:
             )
 
     return run_times
-
-
-def get_timezone() -> pytz.BaseTzInfo:
-    """Parse and validate timezone from environment variable."""
-    timezone_env = os.getenv("TZ", "America/New_York")
-    try:
-        return pytz.timezone(timezone_env)
-    except pytz.UnknownTimeZoneError:
-        logger.warning(f"Unknown timezone '{timezone_env}'. Using 'America/New_York' as fallback.")
-        return pytz.timezone("America/New_York")

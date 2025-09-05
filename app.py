@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import time
 from datetime import datetime
+from typing import Callable
 
 import schedule
 
@@ -33,14 +34,19 @@ class OptionsBot:
         self.alpaca_client = AlpacaClient()
         self.telegram_bot.send_message(msg=f"{BOT_NAME} is running!")
 
+    def _schedule_weekday_task(self, task_func: Callable[[str], None], run_time: str) -> None:
+        weekdays = ["monday", "tuesday", "wednesday", "thursday", "friday"]
+        for day in weekdays:
+            getattr(schedule.every(), day).at(run_time, self.timezone.zone).do(task_func, run_time)
+
     def run(self) -> None:
         logger.debug(f"Scheduling checking for times: {self.check_times} {self.timezone}")
         for run_time in self.check_times:
-            schedule.every().day.at(run_time, self.timezone.zone).do(self._run_checks, run_time)
+            self._schedule_weekday_task(self._run_checks, run_time)
 
         logger.debug(f"Scheduling trading for times: {self.trade_times} {self.timezone}")
         for run_time in self.trade_times:
-            schedule.every().day.at(run_time, self.timezone.zone).do(self._run_trades, run_time)
+            self._schedule_weekday_task(self._run_trades, run_time)
 
         while True:
             schedule.run_pending()

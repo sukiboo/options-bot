@@ -88,9 +88,9 @@ class OptionsBot:
             self.telegram_bot.send_message(msg=f"portfolio value: ${value:,.2f}")
 
     def trade_options(self, telegram: bool = False) -> None:
-        self.alpaca_client.trade_options()
-        time.sleep(60)
-        self.report_positions(telegram=telegram)
+        if self.alpaca_client.trade_options():
+            self.report_positions(telegram=telegram)
+            self.report_value(telegram=telegram)
 
 
 if __name__ == "__main__":

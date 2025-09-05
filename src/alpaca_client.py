@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
+import time
 from datetime import date, timedelta
 from typing import cast
 
@@ -12,7 +13,13 @@ from alpaca.trading.enums import AssetClass, ContractType, OrderSide, TimeInForc
 from alpaca.trading.models import OptionContract, Position, TradeAccount
 from alpaca.trading.requests import GetOptionContractsRequest, MarketOrderRequest
 
-from src.constants import OTM_MARGIN_CALL, OTM_MARGIN_PUT, PAPER_TRADING, TICKER
+from src.constants import (
+    OTM_MARGIN_CALL,
+    OTM_MARGIN_PUT,
+    PAPER_TRADING,
+    POST_TRADE_DELAY,
+    TICKER,
+)
 
 ALPACA_API_KEY = os.getenv("ALPACA_API_KEY", "")
 ALPACA_API_SECRET = os.getenv("ALPACA_API_SECRET", "")
@@ -107,10 +114,10 @@ class AlpacaClient:
 
         return option_contracts[0]
 
-    def trade_options(self) -> None:
+    def trade_options(self) -> bool:
         if self.have_option_contracts(TICKER):
             logger.debug("Options are in portfolio already, skipping options trade.")
-            return
+            return False
 
         expiration_date = self.get_expiration_date()
         ticker_price = self.get_ticker_price(TICKER)
@@ -121,6 +128,10 @@ class AlpacaClient:
         else:
             strike_price = (1 - OTM_MARGIN_PUT) * ticker_price
             self.sell_covered_puts(TICKER, expiration_date, strike_price)
+
+        time.sleep(POST_TRADE_DELAY)
+
+        return True
 
     def sell_covered_calls(self, ticker: str, expiration_date: date, strike_price: float) -> None:
         ticker_qty = int(self.positions[ticker]["qty"] or "0")

@@ -134,7 +134,7 @@ class AlpacaClient:
         return True
 
     def sell_covered_calls(self, ticker: str, expiration_date: date, strike_price: float) -> None:
-        ticker_qty = int(self.positions[ticker]["qty"] or "0")
+        ticker_qty = float(self.positions[ticker]["qty"] or "0")
         if ticker_qty < 100:
             logger.debug(
                 f"Only have {ticker_qty} shares of {ticker}, "
@@ -151,7 +151,7 @@ class AlpacaClient:
         self.submit_sell_order(call_contract.symbol, call_contract_qty)
 
     def sell_covered_puts(self, ticker: str, expiration_date: date, strike_price: float) -> None:
-        cash = int(self.positions["USD"]["qty"] or "0")
+        cash = float(self.positions["USD"]["qty"] or "0")
         if cash < 100 * strike_price:
             logger.debug(
                 f"Only have cash for {cash / strike_price:.2f} shares "

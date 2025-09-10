@@ -55,6 +55,7 @@ class AlpacaClient:
     def positions(self) -> dict[str, dict[str, str | None]]:
         return {
             **{str(self.account.currency): {"qty": str(self.account.cash), "price": "1.00"}},
+            **{str(TICKER): {"qty": "0", "price": str(self.get_ticker_price(TICKER))}},
             **{
                 str(p.symbol): {"qty": str(p.qty), "price": str(p.current_price)}
                 for p in cast(list[Position], self.client.get_all_positions())

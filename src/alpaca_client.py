@@ -123,7 +123,7 @@ class AlpacaClient:
         expiration_date = self.get_expiration_date()
         ticker_price = self.get_ticker_price(TICKER)
 
-        if TICKER in self.positions:
+        if float(self.positions.get(TICKER, {}).get("qty") or "0") > 0:
             strike_price = (1 + OTM_MARGIN_CALL) * ticker_price
             self.sell_covered_calls(TICKER, expiration_date, strike_price)
         else:

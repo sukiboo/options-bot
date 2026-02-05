@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import os
 import time
 from datetime import date, timedelta
 from typing import cast
@@ -13,36 +12,16 @@ from alpaca.trading.enums import AssetClass, ContractType, OrderSide, TimeInForc
 from alpaca.trading.models import OptionContract, Position, TradeAccount
 from alpaca.trading.requests import GetOptionContractsRequest, MarketOrderRequest
 
-from src.constants import (
-    OTM_MARGIN_CALL,
-    OTM_MARGIN_PUT,
-    PAPER_TRADING,
-    POST_TRADE_DELAY,
-    TICKER,
-)
-
-ALPACA_API_KEY = os.getenv("ALPACA_API_KEY", "")
-ALPACA_API_SECRET = os.getenv("ALPACA_API_SECRET", "")
+from src.schemas import AlpacaEnv, Settings
 
 logger = logging.getLogger()
 
 
 class AlpacaClient:
-    def __init__(self) -> None:
-        self.setup()
-
-    def setup(self) -> None:
-        if not ALPACA_API_KEY:
-            msg = "ALPACA_API_KEY is not set!"
-            logger.error(msg)
-            raise SystemExit(msg)
-        if not ALPACA_API_SECRET:
-            msg = "ALPACA_API_SECRET is not set!"
-            logger.error(msg)
-            raise SystemExit(msg)
-
-        self.client = TradingClient(ALPACA_API_KEY, ALPACA_API_SECRET, paper=PAPER_TRADING)
-        self.data_client = StockHistoricalDataClient(ALPACA_API_KEY, ALPACA_API_SECRET)
+    def __init__(self, env: AlpacaEnv, settings: Settings) -> None:
+        self.settings = settings
+        self.client = TradingClient(env.api_key, env.api_secret, paper=settings.paper_trading)
+        self.data_client = StockHistoricalDataClient(env.api_key, env.api_secret)
 
     @property
     def account(self) -> TradeAccount:
@@ -53,9 +32,10 @@ class AlpacaClient:
 
     @property
     def positions(self) -> dict[str, dict[str, str | None]]:
+        ticker = self.settings.ticker
         return {
             **{str(self.account.currency): {"qty": str(self.account.cash), "price": "1.00"}},
-            **{str(TICKER): {"qty": "0", "price": str(self.get_ticker_price(TICKER))}},
+            **{ticker: {"qty": "0", "price": str(self.get_ticker_price(ticker))}},
             **{
                 str(p.symbol): {"qty": str(p.qty), "price": str(p.current_price)}
                 for p in cast(list[Position], self.client.get_all_positions())
@@ -80,7 +60,6 @@ class AlpacaClient:
         return ticker_price
 
     def get_expiration_date(self) -> date:
-        """Return the next Friday expiration date."""
         return date.today() + timedelta(days=(4 - date.today().weekday()) % 7 or 7)
 
     def have_option_contracts(self, ticker: str) -> bool:
@@ -116,21 +95,22 @@ class AlpacaClient:
         return option_contracts[0]
 
     def trade_options(self) -> bool:
-        if self.have_option_contracts(TICKER):
+        ticker = self.settings.ticker
+        if self.have_option_contracts(ticker):
             logger.debug("Options are in portfolio already, skipping options trade.")
             return False
 
         expiration_date = self.get_expiration_date()
-        ticker_price = self.get_ticker_price(TICKER)
+        ticker_price = self.get_ticker_price(ticker)
 
-        if float(self.positions.get(TICKER, {}).get("qty") or "0") > 0:
-            strike_price = (1 + OTM_MARGIN_CALL) * ticker_price
-            self.sell_covered_calls(TICKER, expiration_date, strike_price)
+        if float(self.positions.get(ticker, {}).get("qty") or "0") > 0:
+            strike_price = (1 + self.settings.otm_margin_call) * ticker_price
+            self.sell_covered_calls(ticker, expiration_date, strike_price)
         else:
-            strike_price = (1 - OTM_MARGIN_PUT) * ticker_price
-            self.sell_covered_puts(TICKER, expiration_date, strike_price)
+            strike_price = (1 - self.settings.otm_margin_put) * ticker_price
+            self.sell_covered_puts(ticker, expiration_date, strike_price)
 
-        time.sleep(POST_TRADE_DELAY)
+        time.sleep(self.settings.post_trade_delay)
 
         return True
 

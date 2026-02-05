@@ -1,0 +1,17 @@
+bot_name: options-bot
+paper_trading: true
+post_trade_delay: 60
+
+ticker: AAPL
+otm_margin_call: 0.05
+otm_margin_put: 0.05
+
+timezone: America/New_York
+
+trade_times:
+  - "10:00"
+
+check_times:
+  - "10:00"
+  - "13:00"
+  - "16:00"

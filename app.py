@@ -1,103 +1,10 @@
 from __future__ import annotations
 
-import logging
-import time
-from datetime import datetime
-from typing import Callable
-
-import schedule
-
-from src.alpaca_client import AlpacaClient
-from src.constants import BOT_NAME
-from src.telegram_bot import TelegramBot
-from src.utils import get_timezone, parse_run_times, setup_logger
-
-logger = setup_logger(level=logging.DEBUG)
-
-
-class OptionsBot:
-    def __init__(self) -> None:
-        logger.debug(f"{BOT_NAME} initializing...")
-        self.setup()
-        self.run()
-
-    def setup(self) -> None:
-        try:
-            self.timezone = get_timezone()
-            self.check_times = parse_run_times("CHECK_TIMES")
-            self.trade_times = parse_run_times("TRADE_TIMES")
-        except ValueError as e:
-            logger.error(str(e))
-            return
-
-        self.telegram_bot = TelegramBot()
-        self.alpaca_client = AlpacaClient()
-        self.telegram_bot.send_message(msg=f"{BOT_NAME} is running!")
-
-    def _schedule_weekday_task(self, task_func: Callable[[str], None], run_time: str) -> None:
-        weekdays = ["monday", "tuesday", "wednesday", "thursday", "friday"]
-        for day in weekdays:
-            getattr(schedule.every(), day).at(run_time, self.timezone.zone).do(task_func, run_time)
-
-    def run(self) -> None:
-        logger.debug(f"Scheduling checking for times: {self.check_times} {self.timezone}")
-        for run_time in self.check_times:
-            self._schedule_weekday_task(self._run_checks, run_time)
-
-        logger.debug(f"Scheduling trading for times: {self.trade_times} {self.timezone}")
-        for run_time in self.trade_times:
-            self._schedule_weekday_task(self._run_trades, run_time)
-
-        while True:
-            schedule.run_pending()
-            time.sleep(10)
-
-    def _run_checks(self, run_time: str) -> None:
-        logger.debug(
-            f"Executing checking tasks at "
-            f"{datetime.now(self.timezone).strftime('%H:%M:%S')} "
-            f"(scheduled for {run_time})..."
-        )
-        try:
-            self.report_positions(telegram=False)
-            self.report_value(telegram=False)
-            logger.debug(f"Successfully completed all checking tasks for {run_time}!")
-        except Exception as e:
-            error_msg = f"Error during checking execution at {run_time}: {e}"
-            logger.error(error_msg)
-            self.telegram_bot.send_message(msg=f"⚠️ {error_msg}")
-
-    def _run_trades(self, run_time: str) -> None:
-        logger.debug(
-            f"Executing trading tasks at "
-            f"{datetime.now(self.timezone).strftime('%H:%M:%S')} "
-            f"(scheduled for {run_time})..."
-        )
-        try:
-            self.trade_options(telegram=True)
-            logger.debug(f"Successfully completed all trading tasks for {run_time}!")
-        except Exception as e:
-            error_msg = f"Error during trading execution at {run_time}: {e}"
-            logger.error(error_msg)
-            self.telegram_bot.send_message(msg=f"⚠️ {error_msg}")
-
-    def report_positions(self, telegram: bool = False) -> None:
-        positions = self.alpaca_client.positions
-        logger.info(f"positions: {positions}")
-        if telegram:
-            self.telegram_bot.send_message(msg=f"positions: {positions}")
-
-    def report_value(self, telegram: bool = False) -> None:
-        value = self.alpaca_client.portfolio_value
-        logger.info(f"portfolio value: ${value:,.2f}")
-        if telegram:
-            self.telegram_bot.send_message(msg=f"portfolio value: ${value:,.2f}")
-
-    def trade_options(self, telegram: bool = False) -> None:
-        if self.alpaca_client.trade_options():
-            self.report_positions(telegram=telegram)
-            self.report_value(telegram=telegram)
-
+from src.bot import OptionsBot
+from src.schemas import load_alpaca_env, load_settings, load_telegram_env
+from src.utils import setup_logger
 
 if __name__ == "__main__":
-    bot = OptionsBot()
+    setup_logger()
+    settings = load_settings()
+    OptionsBot(settings, load_alpaca_env(), load_telegram_env()).run()

@@ -46,9 +46,10 @@ else
 fi
 EOF
 
-echo "==> 🔑 Copy \`.env\` to server"
+echo "==> 🔑 Copy \`.env\` and \`settings.yaml\` to server"
 scp "$ENV_LOCAL_PATH" "${SERVER_USER}@${SERVER_HOST}:~/${SERVER_PATH}/.env" >/dev/null 2>&1
 ssh "${SERVER_USER}@${SERVER_HOST}" "chmod 600 ~/${SERVER_PATH}/.env" >/dev/null 2>&1
+scp "./settings.yaml" "${SERVER_USER}@${SERVER_HOST}:~/${SERVER_PATH}/settings.yaml" >/dev/null 2>&1
 
 echo "==> 🚀 Build and run the container"
 

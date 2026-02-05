@@ -1,32 +1,18 @@
 from __future__ import annotations
 
 import logging
-import os
 
 import telegram
 
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
-TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
+from src.schemas import TelegramEnv
 
 logger = logging.getLogger()
 
 
 class TelegramBot:
-    def __init__(self) -> None:
-        self.setup()
-
-    def setup(self) -> None:
-        if not TELEGRAM_BOT_TOKEN:
-            msg = "TELEGRAM_BOT_TOKEN is not set!"
-            logger.error(msg)
-            raise SystemExit(msg)
-        if not TELEGRAM_CHAT_ID:
-            msg = "TELEGRAM_CHAT_ID is not set!"
-            logger.error(msg)
-            raise SystemExit(msg)
-
-        self.bot = telegram.Bot(token=TELEGRAM_BOT_TOKEN)
-        self.chat_id = TELEGRAM_CHAT_ID
+    def __init__(self, env: TelegramEnv) -> None:
+        self.bot = telegram.Bot(token=env.bot_token)
+        self.chat_id = env.chat_id
 
     def send_message(self, msg: str) -> None:
         try:

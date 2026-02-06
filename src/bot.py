@@ -14,6 +14,9 @@ logger = logging.getLogger()
 
 
 class OptionsBot:
+    notify_on_check = False
+    notify_on_trade = True
+
     def __init__(
         self, settings: Settings, alpaca_env: AlpacaEnv, telegram_env: TelegramEnv
     ) -> None:
@@ -27,35 +30,35 @@ class OptionsBot:
     def run(self) -> None:
         logger.info(f"Scheduling checks: '{self.settings.check_schedule}' ({self.settings.tz})")
         self.scheduler.add_job(
-            self._run_checks,
+            self.run_checks,
             CronTrigger.from_crontab(self.settings.check_schedule, timezone=self.settings.tz),
         )
 
         logger.info(f"Scheduling trades: '{self.settings.trade_schedule}' ({self.settings.tz})")
         self.scheduler.add_job(
-            self._run_trades,
+            self.run_trades,
             CronTrigger.from_crontab(self.settings.trade_schedule, timezone=self.settings.tz),
         )
 
         self.scheduler.start()
 
-    def _run_checks(self) -> None:
+    def run_checks(self) -> None:
         now = datetime.now(self.settings.tz).strftime("%H:%M:%S")
         logger.debug(f"Executing checking tasks at {now}...")
         try:
-            self.report_positions(telegram=False)
-            self.report_value(telegram=False)
+            self.report_positions(telegram=self.notify_on_check)
+            self.report_value(telegram=self.notify_on_check)
             logger.debug("Successfully completed all checking tasks!")
         except Exception as e:
             error_msg = f"Error during checking execution: {e}"
             logger.error(error_msg)
             self.telegram_bot.send_message(msg=f"⚠️ {error_msg}")
 
-    def _run_trades(self) -> None:
+    def run_trades(self) -> None:
         now = datetime.now(self.settings.tz).strftime("%H:%M:%S")
         logger.debug(f"Executing trading tasks at {now}...")
         try:
-            self.trade_options(telegram=True)
+            self.trade_options(telegram=self.notify_on_trade)
             logger.debug("Successfully completed all trading tasks!")
         except Exception as e:
             error_msg = f"Error during trading execution: {e}"

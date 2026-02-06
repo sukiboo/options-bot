@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import os
-from datetime import datetime
 from pathlib import Path
 
 import pytz  # type: ignore
 import yaml
+from apscheduler.triggers.cron import CronTrigger
 from pydantic import BaseModel, Field, field_validator
 
 
@@ -17,8 +17,8 @@ class Settings(BaseModel):
     otm_margin_call: float = Field(gt=0, lt=1)
     otm_margin_put: float = Field(gt=0, lt=1)
     timezone: str = "America/New_York"
-    trade_times: list[str]
-    check_times: list[str]
+    trade_schedule: str
+    check_schedule: str
 
     @field_validator("timezone")
     @classmethod
@@ -26,11 +26,13 @@ class Settings(BaseModel):
         pytz.timezone(v)
         return v
 
-    @field_validator("trade_times", "check_times")
+    @field_validator("trade_schedule", "check_schedule")
     @classmethod
-    def validate_times(cls, v: list[str]) -> list[str]:
-        for t in v:
-            datetime.strptime(t, "%H:%M")
+    def validate_cron(cls, v: str) -> str:
+        try:
+            CronTrigger.from_crontab(v)
+        except ValueError as e:
+            raise ValueError(f"Invalid cron pattern '{v}': {e}")
         return v
 
     @property

@@ -2,9 +2,15 @@
 set -euo pipefail
 
 ENV_LOCAL_PATH="./.env"
+SETTINGS_PATH="./settings.yaml"
 
 if [[ ! -f "$ENV_LOCAL_PATH" ]]; then
   echo "ERROR: $ENV_LOCAL_PATH not found."
+  exit 1
+fi
+
+if [[ ! -f "$SETTINGS_PATH" ]]; then
+  echo "ERROR: $SETTINGS_PATH not found."
   exit 1
 fi
 
@@ -14,7 +20,7 @@ source "$ENV_LOCAL_PATH"
 set +a
 
 # Validate required variables
-REQUIRED_VARS=("SERVER_USER" "SERVER_HOST" "SERVER_PATH" "REPO_URL" "IMAGE_NAME")
+REQUIRED_VARS=("SERVER_USER" "SERVER_HOST" "SERVER_PATH" "REPO_URL")
 MISSING_VARS=()
 for var in "${REQUIRED_VARS[@]}"; do
   if [[ -z "${!var:-}" ]]; then
@@ -28,13 +34,23 @@ if [[ ${#MISSING_VARS[@]} -gt 0 ]]; then
   exit 1
 fi
 
+# Derive IMAGE_NAME and APP_PATH from bot_name in settings.yaml
+BOT_NAME=$(grep -E "^bot_name:" "$SETTINGS_PATH" | sed 's/bot_name:[[:space:]]*//' | sed 's/#.*//' | tr -d '[:space:]')
+if [[ -z "$BOT_NAME" ]]; then
+  echo "ERROR: bot_name not found in $SETTINGS_PATH"
+  exit 1
+fi
+IMAGE_NAME="$BOT_NAME"
+APP_PATH="${SERVER_PATH%/}/${BOT_NAME}"
+
 echo "==> 📦 Pull latest code on server"
 ssh "${SERVER_USER}@${SERVER_HOST}" << EOF >/dev/null 2>&1
 set -euo pipefail
-APPDIR="\$HOME/${SERVER_PATH}"
+APPDIR="\$HOME/${APP_PATH}"
 
 # Clone or update repo
 if [[ ! -d "\$APPDIR/.git" ]]; then
+  mkdir -p "\$(dirname "\$APPDIR")"
   git clone "${REPO_URL}" "\$APPDIR" >/dev/null
 else
   # Only do git operations if repo already exists
@@ -47,15 +63,15 @@ fi
 EOF
 
 echo "==> 🔑 Copy \`.env\` and \`settings.yaml\` to server"
-scp "$ENV_LOCAL_PATH" "${SERVER_USER}@${SERVER_HOST}:~/${SERVER_PATH}/.env" >/dev/null 2>&1
-ssh "${SERVER_USER}@${SERVER_HOST}" "chmod 600 ~/${SERVER_PATH}/.env" >/dev/null 2>&1
-scp "./settings.yaml" "${SERVER_USER}@${SERVER_HOST}:~/${SERVER_PATH}/settings.yaml" >/dev/null 2>&1
+scp "$ENV_LOCAL_PATH" "${SERVER_USER}@${SERVER_HOST}:~/${APP_PATH}/.env" >/dev/null 2>&1
+ssh "${SERVER_USER}@${SERVER_HOST}" "chmod 600 ~/${APP_PATH}/.env" >/dev/null 2>&1
+scp "$SETTINGS_PATH" "${SERVER_USER}@${SERVER_HOST}:~/${APP_PATH}/settings.yaml" >/dev/null 2>&1
 
 echo "==> 🚀 Build and run the container"
 
 ssh "${SERVER_USER}@${SERVER_HOST}" << EOF >/dev/null 2>&1
 set -euo pipefail
-APPDIR="\$HOME/${SERVER_PATH}"
+APPDIR="\$HOME/${APP_PATH}"
 
 # Determine Docker command and install if needed
 DOCKER_CMD="docker"

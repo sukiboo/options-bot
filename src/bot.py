@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 import logging
-import time
 from datetime import datetime
-from typing import Callable
 
-import schedule
+from apscheduler.schedulers.blocking import BlockingScheduler
+from apscheduler.triggers.cron import CronTrigger
 
 from src.alpaca_client import AlpacaClient
 from src.schemas import AlpacaEnv, Settings, TelegramEnv
@@ -22,58 +21,44 @@ class OptionsBot:
         logger.debug(f"{settings.bot_name} initializing...")
         self.telegram_bot = TelegramBot(telegram_env)
         self.alpaca_client = AlpacaClient(alpaca_env, settings)
-        self.telegram_bot.send_message(msg=f"{settings.bot_name} is running!")
-
-    def _schedule_weekday_task(self, task_func: Callable[[str], None], run_time: str) -> None:
-        weekdays = ["monday", "tuesday", "wednesday", "thursday", "friday"]
-        for day in weekdays:
-            getattr(schedule.every(), day).at(run_time, self.settings.tz.zone).do(
-                task_func, run_time
-            )
+        self.scheduler = BlockingScheduler(timezone=settings.tz)
+        self.telegram_bot.send_message(msg=f"🔆 {settings.bot_name} is running!")
 
     def run(self) -> None:
-        logger.debug(
-            f"Scheduling checking for times: {self.settings.check_times} {self.settings.tz}"
+        logger.info(f"Scheduling checks: '{self.settings.check_schedule}' ({self.settings.tz})")
+        self.scheduler.add_job(
+            self._run_checks,
+            CronTrigger.from_crontab(self.settings.check_schedule, timezone=self.settings.tz),
         )
-        for run_time in self.settings.check_times:
-            self._schedule_weekday_task(self._run_checks, run_time)
 
-        logger.debug(
-            f"Scheduling trading for times: {self.settings.trade_times} {self.settings.tz}"
+        logger.info(f"Scheduling trades: '{self.settings.trade_schedule}' ({self.settings.tz})")
+        self.scheduler.add_job(
+            self._run_trades,
+            CronTrigger.from_crontab(self.settings.trade_schedule, timezone=self.settings.tz),
         )
-        for run_time in self.settings.trade_times:
-            self._schedule_weekday_task(self._run_trades, run_time)
 
-        while True:
-            schedule.run_pending()
-            time.sleep(10)
+        self.scheduler.start()
 
-    def _run_checks(self, run_time: str) -> None:
-        logger.debug(
-            f"Executing checking tasks at "
-            f"{datetime.now(self.settings.tz).strftime('%H:%M:%S')} "
-            f"(scheduled for {run_time})..."
-        )
+    def _run_checks(self) -> None:
+        now = datetime.now(self.settings.tz).strftime("%H:%M:%S")
+        logger.debug(f"Executing checking tasks at {now}...")
         try:
             self.report_positions(telegram=False)
             self.report_value(telegram=False)
-            logger.debug(f"Successfully completed all checking tasks for {run_time}!")
+            logger.debug("Successfully completed all checking tasks!")
         except Exception as e:
-            error_msg = f"Error during checking execution at {run_time}: {e}"
+            error_msg = f"Error during checking execution: {e}"
             logger.error(error_msg)
             self.telegram_bot.send_message(msg=f"⚠️ {error_msg}")
 
-    def _run_trades(self, run_time: str) -> None:
-        logger.debug(
-            f"Executing trading tasks at "
-            f"{datetime.now(self.settings.tz).strftime('%H:%M:%S')} "
-            f"(scheduled for {run_time})..."
-        )
+    def _run_trades(self) -> None:
+        now = datetime.now(self.settings.tz).strftime("%H:%M:%S")
+        logger.debug(f"Executing trading tasks at {now}...")
         try:
             self.trade_options(telegram=True)
-            logger.debug(f"Successfully completed all trading tasks for {run_time}!")
+            logger.debug("Successfully completed all trading tasks!")
         except Exception as e:
-            error_msg = f"Error during trading execution at {run_time}: {e}"
+            error_msg = f"Error during trading execution: {e}"
             logger.error(error_msg)
             self.telegram_bot.send_message(msg=f"⚠️ {error_msg}")
 
@@ -81,13 +66,13 @@ class OptionsBot:
         positions = self.alpaca_client.positions
         logger.info(f"positions: {positions}")
         if telegram:
-            self.telegram_bot.send_message(msg=f"positions: {positions}")
+            self.telegram_bot.send_message(msg=f"📑 positions: {positions}")
 
     def report_value(self, telegram: bool = False) -> None:
         value = self.alpaca_client.portfolio_value
         logger.info(f"portfolio value: ${value:,.2f}")
         if telegram:
-            self.telegram_bot.send_message(msg=f"portfolio value: ${value:,.2f}")
+            self.telegram_bot.send_message(msg=f"💰 portfolio value: ${value:,.2f}")
 
     def trade_options(self, telegram: bool = False) -> None:
         if self.alpaca_client.trade_options():

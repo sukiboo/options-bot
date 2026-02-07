@@ -22,7 +22,10 @@ class Settings(BaseModel):
     @field_validator("timezone")
     @classmethod
     def validate_timezone(cls, v: str) -> str:
-        pytz.timezone(v)
+        try:
+            pytz.timezone(v)
+        except pytz.exceptions.UnknownTimeZoneError:
+            raise ValueError(f"Unknown timezone '{v}'")
         return v
 
     @field_validator("trade_options_schedule", "check_value_schedule")

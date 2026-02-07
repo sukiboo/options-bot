@@ -4,6 +4,32 @@ import logging
 import os
 import time
 from datetime import datetime, timezone
+from typing import Any, Callable
+
+
+class cached_property_ttl:
+    """A property descriptor with time-based caching. Usage: @cached_property_ttl(ttl=60)"""
+
+    def __init__(self, ttl: float) -> None:
+        self.ttl = ttl
+        self.func: Callable[..., Any] = lambda _: None
+
+    def __call__(self, func: Callable[..., Any]) -> cached_property_ttl:
+        self.func = func
+        return self
+
+    def __set_name__(self, owner: type, name: str) -> None:
+        self.attr = f"_ttl_{name}"
+
+    def __get__(self, obj: Any, objtype: type | None = None) -> Any:
+        if obj is None:
+            return self
+        cached = getattr(obj, self.attr, None)
+        if cached is not None and time.time() - cached[1] < self.ttl:
+            return cached[0]
+        result = self.func(obj)
+        setattr(obj, self.attr, (result, time.time()))
+        return result
 
 
 def setup_logger(log_dir: str = "logs", level: int = logging.DEBUG) -> logging.Logger:
@@ -15,7 +41,7 @@ def setup_logger(log_dir: str = "logs", level: int = logging.DEBUG) -> logging.L
     logger.handlers.clear()
 
     class UtcFormatter(logging.Formatter):
-        converter = time.gmtime
+        converter = time.gmtime  # type: ignore[assignment]
 
     formatter = UtcFormatter(
         fmt="%(asctime)sZ | %(levelname)s | %(message)s", datefmt="%Y-%m-%d %H:%M:%S"

@@ -19,6 +19,7 @@ from alpaca.trading.models import OptionContract, Order, Position, TradeAccount
 from alpaca.trading.requests import GetOptionContractsRequest, MarketOrderRequest
 
 from src.schemas import AlpacaEnv, Settings
+from src.utils import cached_property_ttl
 
 logger = logging.getLogger()
 
@@ -30,14 +31,14 @@ class AlpacaClient:
         self.data_client = StockHistoricalDataClient(env.api_key, env.api_secret)
         self.get_ticker_price(settings.ticker)  # validate ticker
 
-    @property
+    @cached_property_ttl(ttl=60)
     def account(self) -> TradeAccount:
         account = self.client.get_account()
         if not isinstance(account, TradeAccount):
             raise TypeError(f"Expected TradeAccount, got {type(account).__name__}")
-        return cast(TradeAccount, account)
+        return account
 
-    @property
+    @cached_property_ttl(ttl=60)
     def positions(self) -> dict[str, dict[str, str | None]]:
         ticker = self.settings.ticker
         return {
@@ -70,8 +71,13 @@ class AlpacaClient:
         return date.today() + timedelta(days=(4 - date.today().weekday()) % 7 or 7)
 
     def have_option_contracts(self, ticker: str) -> bool:
+        """Match OCC symbols (e.g. AAPL250926C00210000) by checking that the ticker
+        is followed by a digit to avoid false matches (e.g. ticker A matching AAPL)."""
         return any(
-            p.symbol.startswith(ticker) and p.asset_class == AssetClass.US_OPTION
+            p.symbol[: len(ticker)] == ticker
+            and len(p.symbol) > len(ticker)
+            and p.symbol[len(ticker)].isdigit()
+            and p.asset_class == AssetClass.US_OPTION
             for p in cast(list[Position], self.client.get_all_positions())
         )
 
@@ -123,6 +129,9 @@ class AlpacaClient:
             return None
 
         filled_order = self.wait_for_fill(order)
+        if filled_order is None:
+            return None
+
         return {
             "type": option_type,
             "symbol": filled_order.symbol,
@@ -185,7 +194,9 @@ class AlpacaClient:
         logger.info(f"Order submitted: {order.id}")
         return order
 
-    def wait_for_fill(self, order: Order, timeout: int = 60, poll_interval: int = 2) -> Order:
+    def wait_for_fill(
+        self, order: Order, timeout: int = 60, poll_interval: int = 2
+    ) -> Order | None:
         start = time.time()
         while time.time() - start < timeout:
             order = cast(Order, self.client.get_order_by_id(order.id))
@@ -194,4 +205,4 @@ class AlpacaClient:
                 return order
             time.sleep(poll_interval)
         logger.warning(f"Order {order.id} not filled within {timeout}s, status: {order.status}")
-        return order
+        return None

@@ -28,6 +28,7 @@ class AlpacaClient:
         self.settings = settings
         self.client = TradingClient(env.api_key, env.api_secret, paper=settings.paper_trading)
         self.data_client = StockHistoricalDataClient(env.api_key, env.api_secret)
+        self.get_ticker_price(settings.ticker)  # validate ticker
 
     @property
     def account(self) -> TradeAccount:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import html
 import logging
 
@@ -17,11 +18,15 @@ class TelegramBot:
 
     def send_message(self, msg: str, silent: bool = False) -> None:
         try:
-            self.bot.send_message(
+            asyncio.run(self._send(msg, silent))
+        except Exception as e:
+            logger.error("[telegram] error: %s", e)
+
+    async def _send(self, msg: str, silent: bool) -> None:
+        async with self.bot:
+            await self.bot.send_message(
                 chat_id=self.chat_id,
                 text=f"<code>{html.escape(msg)}</code>",
                 parse_mode="HTML",
                 disable_notification=silent,
             )
-        except Exception as e:
-            logger.error("[telegram] error: %s", e)

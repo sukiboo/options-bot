@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 from src.schemas import TelegramEnv
 from src.telegram_bot import TelegramBot
@@ -10,7 +10,7 @@ class TestTelegramBot:
     def setup_method(self):
         with patch("src.telegram_bot.telegram.Bot"):
             self.bot = TelegramBot(TelegramEnv(bot_token="tok", chat_id="123"))
-            self.bot.bot = MagicMock()
+            self.bot.bot = AsyncMock()
 
     def test_send_message_formats_html(self):
         self.bot.send_message("hello <world>")

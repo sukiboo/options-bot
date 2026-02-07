@@ -63,19 +63,26 @@ class OptionsBot:
             logger.error(error_msg)
             self.telegram_bot.send_message(msg=f"⚠️ {error_msg}")
 
-    def report_positions(self, telegram: bool = False) -> None:
-        positions = self.alpaca_client.positions
-        logger.info(f"positions: {positions}")
-        if telegram:
-            self.telegram_bot.send_message(msg=f"📑 positions: {positions}")
-
-    def report_value(self, telegram: bool = False) -> None:
-        value = self.alpaca_client.portfolio_value
-        logger.info(f"portfolio value: ${value:,.2f}")
-        if telegram:
-            self.telegram_bot.send_message(msg=f"💰 portfolio value: ${value:,.2f}")
-
     def trade_options(self, telegram: bool = False) -> None:
-        if self.alpaca_client.trade_options():
+        if trade := self.alpaca_client.trade_options():
+            self.report_trade(trade, telegram=telegram)
             self.report_positions(telegram=telegram)
             self.report_value(telegram=telegram)
+
+    def report_trade(self, trade: dict, telegram: bool = False) -> None:
+        msg = f"order: {trade['symbol']} x{trade['qty']} @ ${trade['filled_avg_price']:,.2f}"
+        logger.info(msg)
+        if telegram:
+            self.telegram_bot.send_message(msg=f"🤝 {msg}")
+
+    def report_positions(self, telegram: bool = False) -> None:
+        msg = f"positions: {self.alpaca_client.positions}"
+        logger.info(msg)
+        if telegram:
+            self.telegram_bot.send_message(msg=f"📑 {msg}")
+
+    def report_value(self, telegram: bool = False) -> None:
+        msg = f"portfolio value: ${self.alpaca_client.portfolio_value:,.2f}"
+        logger.info(msg)
+        if telegram:
+            self.telegram_bot.send_message(msg=f"💰 {msg}")

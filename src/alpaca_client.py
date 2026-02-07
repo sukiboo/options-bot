@@ -8,8 +8,14 @@ from typing import cast
 from alpaca.data.historical import StockHistoricalDataClient
 from alpaca.data.requests import StockLatestTradeRequest
 from alpaca.trading.client import TradingClient
-from alpaca.trading.enums import AssetClass, ContractType, OrderSide, TimeInForce
-from alpaca.trading.models import OptionContract, Position, TradeAccount
+from alpaca.trading.enums import (
+    AssetClass,
+    ContractType,
+    OrderSide,
+    OrderStatus,
+    TimeInForce,
+)
+from alpaca.trading.models import OptionContract, Order, Position, TradeAccount
 from alpaca.trading.requests import GetOptionContractsRequest, MarketOrderRequest
 
 from src.schemas import AlpacaEnv, Settings
@@ -18,8 +24,6 @@ logger = logging.getLogger()
 
 
 class AlpacaClient:
-    post_trade_delay = 60  # delay between an order and reporting, in seconds
-
     def __init__(self, env: AlpacaEnv, settings: Settings) -> None:
         self.settings = settings
         self.client = TradingClient(env.api_key, env.api_secret, paper=settings.paper_trading)
@@ -96,34 +100,46 @@ class AlpacaClient:
 
         return option_contracts[0]
 
-    def trade_options(self) -> bool:
+    def trade_options(self) -> dict | None:
         ticker = self.settings.ticker
         if self.have_option_contracts(ticker):
             logger.debug("Options are in portfolio already, skipping options trade.")
-            return False
+            return None
 
         expiration_date = self.get_expiration_date()
         ticker_price = self.get_ticker_price(ticker)
 
         if float(self.positions.get(ticker, {}).get("qty") or "0") > 0:
             strike_price = (1 + self.settings.call_option_margin) * ticker_price
-            self.sell_covered_calls(ticker, expiration_date, strike_price)
+            order = self.sell_covered_calls(ticker, expiration_date, strike_price)
+            option_type = "call"
         else:
             strike_price = (1 - self.settings.put_option_margin) * ticker_price
-            self.sell_covered_puts(ticker, expiration_date, strike_price)
+            order = self.sell_covered_puts(ticker, expiration_date, strike_price)
+            option_type = "put"
 
-        time.sleep(self.post_trade_delay)
+        if order is None:
+            return None
 
-        return True
+        filled_order = self.wait_for_fill(order)
+        return {
+            "type": option_type,
+            "symbol": filled_order.symbol,
+            "qty": filled_order.qty,
+            "filled_avg_price": filled_order.filled_avg_price,
+            "status": str(filled_order.status),
+        }
 
-    def sell_covered_calls(self, ticker: str, expiration_date: date, strike_price: float) -> None:
+    def sell_covered_calls(
+        self, ticker: str, expiration_date: date, strike_price: float
+    ) -> Order | None:
         ticker_qty = float(self.positions[ticker]["qty"] or "0")
         if ticker_qty < 100:
             logger.debug(
                 f"Only have {ticker_qty} shares of {ticker}, "
                 f"not enough for the covered call trade."
             )
-            return
+            return None
 
         call_contract_qty = int(ticker_qty / 100)
         call_contract = self.get_option_contract(
@@ -131,16 +147,18 @@ class AlpacaClient:
         )
 
         logger.debug(f"Selling {call_contract_qty} calls for {ticker}: {call_contract}")
-        self.submit_sell_order(call_contract.symbol, call_contract_qty)
+        return self.submit_sell_order(call_contract.symbol, call_contract_qty)
 
-    def sell_covered_puts(self, ticker: str, expiration_date: date, strike_price: float) -> None:
+    def sell_covered_puts(
+        self, ticker: str, expiration_date: date, strike_price: float
+    ) -> Order | None:
         cash = float(self.positions["USD"]["qty"] or "0")
         if cash < 100 * strike_price:
             logger.debug(
                 f"Only have cash for {cash / strike_price:.2f} shares "
                 f"of {ticker}, not enough for the covered put trade."
             )
-            return
+            return None
 
         put_contract_qty = int(cash / strike_price / 100)
         put_contract = self.get_option_contract(
@@ -148,19 +166,31 @@ class AlpacaClient:
         )
 
         logger.debug(f"Selling {put_contract_qty} puts for {ticker}: {put_contract}")
-        self.submit_sell_order(put_contract.symbol, put_contract_qty)
+        return self.submit_sell_order(put_contract.symbol, put_contract_qty)
 
-    def submit_sell_order(self, symbol: str, qty: int) -> None:
-        logger.info(f"Selling {qty} shares of {symbol}...")
-        order = self.client.submit_order(
-            MarketOrderRequest(
-                symbol=symbol,
-                qty=qty,
-                side=OrderSide.SELL,
-                time_in_force=TimeInForce.DAY,
-            )
+    def submit_sell_order(self, symbol: str, qty: int) -> Order:
+        logger.info(f"Selling {qty} of {symbol}...")
+        order = cast(
+            Order,
+            self.client.submit_order(
+                MarketOrderRequest(
+                    symbol=symbol,
+                    qty=qty,
+                    side=OrderSide.SELL,
+                    time_in_force=TimeInForce.DAY,
+                )
+            ),
         )
-        if order:
-            logger.info(f"Order submitted successfully: {order}")
-        else:
-            logger.error(f"Order submission failed: {order}")
+        logger.info(f"Order submitted: {order.id}")
+        return order
+
+    def wait_for_fill(self, order: Order, timeout: int = 60, poll_interval: int = 2) -> Order:
+        start = time.time()
+        while time.time() - start < timeout:
+            order = cast(Order, self.client.get_order_by_id(order.id))
+            if order.status in (OrderStatus.FILLED, OrderStatus.PARTIALLY_FILLED):
+                logger.info(f"Order {order.id} filled at {order.filled_avg_price}")
+                return order
+            time.sleep(poll_interval)
+        logger.warning(f"Order {order.id} not filled within {timeout}s, status: {order.status}")
+        return order

@@ -1,11 +1,10 @@
-bot_name: options-bot               # define Docker image name and bot deploy path
-paper_trading: true                 # Alpaca paper trading (true) or live trading (false)
-post_trade_delay: 60                # delay between an order and reporting, in seconds
+bot_name: options-bot                     # define Docker image name and bot deploy path
+paper_trading: true                       # Alpaca paper trading (true) or live trading (false)
 
-ticker: AAPL                        # ticker to trade options on
-otm_margin_call: 0.05               # otm margin for covered calls
-otm_margin_put: 0.05                # otm margin for covered puts
+ticker: AAPL                              # ticker to trade options on
+call_option_margin: 0.05                  # relative margin for covered calls
+put_option_margin: 0.05                   # relative margin for covered puts
 
-timezone: America/New_York          # schedule timezone (IANA format)
-trade_schedule: "0 10 * * 1-5"      # 10:00 AM weekdays
-check_schedule: "0 10-16 * * 1-5"   # every hour 10:00--16:00 weekdays
+timezone: America/New_York                # schedule timezone (IANA format)
+trade_options_schedule: "59 9 * * 1-5"    # 09:59 AM weekdays
+check_value_schedule: "0 10-16 * * 1-5"   # every hour 10:00--16:00 weekdays

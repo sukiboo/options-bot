@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime
 
 from apscheduler.schedulers.blocking import BlockingScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -14,8 +13,8 @@ logger = logging.getLogger()
 
 
 class OptionsBot:
-    notify_on_check = False
     notify_on_trade = True
+    notify_on_check = False
 
     def __init__(
         self, settings: Settings, alpaca_env: AlpacaEnv, telegram_env: TelegramEnv
@@ -28,40 +27,39 @@ class OptionsBot:
         self.telegram_bot.send_message(msg=f"🔆 {settings.bot_name} is running!")
 
     def run(self) -> None:
-        logger.info(f"Scheduling checks: '{self.settings.check_schedule}' ({self.settings.tz})")
+        logger.info(
+            f"Schedule trade_options: '{self.settings.trade_options_schedule}' ({self.settings.tz})"
+        )
         self.scheduler.add_job(
-            self.run_checks,
-            CronTrigger.from_crontab(self.settings.check_schedule, timezone=self.settings.tz),
+            self.run_trade_options,
+            CronTrigger.from_crontab(
+                self.settings.trade_options_schedule, timezone=self.settings.tz
+            ),
         )
 
-        logger.info(f"Scheduling trades: '{self.settings.trade_schedule}' ({self.settings.tz})")
+        logger.info(
+            f"Schedule check_value: '{self.settings.check_value_schedule}' ({self.settings.tz})"
+        )
         self.scheduler.add_job(
-            self.run_trades,
-            CronTrigger.from_crontab(self.settings.trade_schedule, timezone=self.settings.tz),
+            self.run_check_value,
+            CronTrigger.from_crontab(self.settings.check_value_schedule, timezone=self.settings.tz),
         )
 
         self.scheduler.start()
 
-    def run_checks(self) -> None:
-        now = datetime.now(self.settings.tz).strftime("%H:%M:%S")
-        logger.debug(f"Executing checking tasks at {now}...")
+    def run_trade_options(self) -> None:
         try:
-            self.report_positions(telegram=self.notify_on_check)
-            self.report_value(telegram=self.notify_on_check)
-            logger.debug("Successfully completed all checking tasks!")
+            self.trade_options(telegram=self.notify_on_trade)
         except Exception as e:
-            error_msg = f"Error during checking execution: {e}"
+            error_msg = f"Error during trade_options: {e}"
             logger.error(error_msg)
             self.telegram_bot.send_message(msg=f"⚠️ {error_msg}")
 
-    def run_trades(self) -> None:
-        now = datetime.now(self.settings.tz).strftime("%H:%M:%S")
-        logger.debug(f"Executing trading tasks at {now}...")
+    def run_check_value(self) -> None:
         try:
-            self.trade_options(telegram=self.notify_on_trade)
-            logger.debug("Successfully completed all trading tasks!")
+            self.report_value(telegram=self.notify_on_check)
         except Exception as e:
-            error_msg = f"Error during trading execution: {e}"
+            error_msg = f"Error during check_value: {e}"
             logger.error(error_msg)
             self.telegram_bot.send_message(msg=f"⚠️ {error_msg}")
 

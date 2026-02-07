@@ -12,13 +12,12 @@ from pydantic import BaseModel, Field, field_validator
 class Settings(BaseModel):
     bot_name: str = "options-bot"
     paper_trading: bool = True
-    post_trade_delay: int = Field(default=60, ge=0)
     ticker: str
-    otm_margin_call: float = Field(gt=0, lt=1)
-    otm_margin_put: float = Field(gt=0, lt=1)
+    call_option_margin: float = Field(gt=-1, lt=1)
+    put_option_margin: float = Field(gt=-1, lt=1)
     timezone: str = "America/New_York"
-    trade_schedule: str
-    check_schedule: str
+    trade_options_schedule: str
+    check_value_schedule: str
 
     @field_validator("timezone")
     @classmethod
@@ -26,7 +25,7 @@ class Settings(BaseModel):
         pytz.timezone(v)
         return v
 
-    @field_validator("trade_schedule", "check_schedule")
+    @field_validator("trade_options_schedule", "check_value_schedule")
     @classmethod
     def validate_cron(cls, v: str) -> str:
         try:

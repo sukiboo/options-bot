@@ -18,6 +18,8 @@ logger = logging.getLogger()
 
 
 class AlpacaClient:
+    post_trade_delay = 60  # delay between an order and reporting, in seconds
+
     def __init__(self, env: AlpacaEnv, settings: Settings) -> None:
         self.settings = settings
         self.client = TradingClient(env.api_key, env.api_secret, paper=settings.paper_trading)
@@ -104,13 +106,13 @@ class AlpacaClient:
         ticker_price = self.get_ticker_price(ticker)
 
         if float(self.positions.get(ticker, {}).get("qty") or "0") > 0:
-            strike_price = (1 + self.settings.otm_margin_call) * ticker_price
+            strike_price = (1 + self.settings.call_option_margin) * ticker_price
             self.sell_covered_calls(ticker, expiration_date, strike_price)
         else:
-            strike_price = (1 - self.settings.otm_margin_put) * ticker_price
+            strike_price = (1 - self.settings.put_option_margin) * ticker_price
             self.sell_covered_puts(ticker, expiration_date, strike_price)
 
-        time.sleep(self.settings.post_trade_delay)
+        time.sleep(self.post_trade_delay)
 
         return True
 

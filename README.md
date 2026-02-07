@@ -50,17 +50,16 @@ cp settings.example.yaml settings.yaml
 Edit `settings.yaml`:
 
 ```yaml
-bot_name: options-bot               # Docker image name and deploy path
-paper_trading: true                 # true for paper, false for live trading
-post_trade_delay: 60                # seconds to wait after order before reporting
+bot_name: options-bot                     # Docker image name and deploy path
+paper_trading: true                       # true for paper, false for live trading
 
-ticker: AAPL                        # stock to trade options on
-otm_margin_call: 0.05               # 5% above current price for calls
-otm_margin_put: 0.05                # 5% below current price for puts
+ticker: AAPL                              # stock to trade options on
+call_option_margin: 0.05                  # 5% above current price for calls
+put_option_margin: 0.05                   # 5% below current price for puts
 
-timezone: America/New_York          # schedule timezone
-trade_schedule: "0 10 * * 1-5"      # 10:00 AM weekdays
-check_schedule: "0 10-16 * * 1-5"   # hourly 10:00-16:00 weekdays
+timezone: America/New_York                # schedule timezone
+trade_options_schedule: "59 9 * * 1-5"    # 09:59 AM weekdays
+check_value_schedule: "0 10-16 * * 1-5"   # hourly 10:00-16:00 weekdays
 ```
 
 ## Deployment

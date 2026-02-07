@@ -32,7 +32,7 @@ class cached_property_ttl:
         return result
 
 
-def setup_logger(log_dir: str = "logs", level: int = logging.DEBUG) -> logging.Logger:
+def setup_logger(log_dir: str = "logs", level: int = logging.INFO) -> logging.Logger:
     os.makedirs(log_dir, exist_ok=True)
     log_file = os.path.join(log_dir, f"{datetime.now(timezone.utc).strftime('%Y-%m')}.log")
 
@@ -58,7 +58,7 @@ def setup_logger(log_dir: str = "logs", level: int = logging.DEBUG) -> logging.L
     logger.addHandler(fh)
     logger.addHandler(sh)
 
-    for lib in ["telegram", "telegram.bot", "telegram.ext"]:
+    for lib in ["telegram", "telegram.bot", "telegram.ext", "httpx", "httpcore"]:
         logging.getLogger(lib).setLevel(logging.WARNING)
 
     return logger

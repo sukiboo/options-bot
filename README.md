@@ -58,8 +58,8 @@ call_option_margin: 0.05                  # 5% above current price for calls
 put_option_margin: 0.05                   # 5% below current price for puts
 
 timezone: America/New_York                # schedule timezone
-trade_options_schedule: "59 9 * * 1-5"    # 09:59 AM weekdays
-check_value_schedule: "0 10-16 * * 1-5"   # hourly 10:00-16:00 weekdays
+trade_options_schedule: "59 9 * * 0-4"    # 09:59 AM weekdays
+check_value_schedule: "0 10-16 * * 0-4"   # hourly 10:00-16:00 weekdays
 ```
 
 ## Deployment

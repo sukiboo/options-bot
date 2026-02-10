@@ -136,7 +136,7 @@ class AlpacaClient:
             "type": option_type,
             "symbol": filled_order.symbol,
             "qty": filled_order.qty,
-            "filled_avg_price": filled_order.filled_avg_price,
+            "filled_avg_price": float(filled_order.filled_avg_price or 0),
             "status": str(filled_order.status),
         }
 

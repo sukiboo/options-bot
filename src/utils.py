@@ -4,6 +4,7 @@ import logging
 import os
 import time
 from datetime import datetime, timezone
+from logging.handlers import TimedRotatingFileHandler
 from typing import Any, Callable
 
 
@@ -32,9 +33,27 @@ class cached_property_ttl:
         return result
 
 
+class _MonthlyRotatingHandler(TimedRotatingFileHandler):
+    def __init__(self, log_dir: str, **kwargs: Any) -> None:
+        self.log_dir = log_dir
+        super().__init__(self._current_log_path(), when="MIDNIGHT", **kwargs)
+
+    def _current_log_path(self) -> str:
+        return os.path.join(self.log_dir, f"{datetime.now(timezone.utc).strftime('%Y-%m')}.log")
+
+    def shouldRollover(self, record: logging.LogRecord) -> int:
+        return 1 if self._current_log_path() != self.baseFilename else 0
+
+    def doRollover(self) -> None:
+        if self.stream:
+            self.stream.close()
+            self.stream = None  # type: ignore[assignment]
+        self.baseFilename = self._current_log_path()
+        self.stream = self._open()
+
+
 def setup_logger(log_dir: str = "logs", level: int = logging.INFO) -> logging.Logger:
     os.makedirs(log_dir, exist_ok=True)
-    log_file = os.path.join(log_dir, f"{datetime.now(timezone.utc).strftime('%Y-%m')}.log")
 
     logger = logging.getLogger()
     logger.setLevel(level)
@@ -47,7 +66,7 @@ def setup_logger(log_dir: str = "logs", level: int = logging.INFO) -> logging.Lo
         fmt="%(asctime)sZ | %(levelname)s | %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
     )
 
-    fh = logging.FileHandler(log_file, encoding="utf-8")
+    fh = _MonthlyRotatingHandler(log_dir, encoding="utf-8")
     fh.setLevel(level)
     fh.setFormatter(formatter)
 

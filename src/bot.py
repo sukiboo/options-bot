@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 
+from apscheduler.schedulers.base import STATE_STOPPED
 from apscheduler.schedulers.blocking import BlockingScheduler
 from apscheduler.triggers.cron import CronTrigger
 
@@ -10,6 +11,17 @@ from src.schemas import AlpacaEnv, Settings, TelegramEnv
 from src.telegram_bot import TelegramBot
 
 logger = logging.getLogger()
+
+MAX_SCHEDULER_WAIT = 3600
+
+
+class SafeBlockingScheduler(BlockingScheduler):
+    def _main_loop(self) -> None:  # type: ignore[override]
+        wait_seconds = MAX_SCHEDULER_WAIT
+        while self.state != STATE_STOPPED:  # type: ignore[attr-defined]
+            self._event.wait(wait_seconds)  # type: ignore[attr-defined]
+            self._event.clear()  # type: ignore[attr-defined]
+            wait_seconds = min(self._process_jobs() or MAX_SCHEDULER_WAIT, MAX_SCHEDULER_WAIT)
 
 
 class OptionsBot:
@@ -23,7 +35,7 @@ class OptionsBot:
         logger.debug(f"{settings.bot_name} initializing...")
         self.telegram_bot = TelegramBot(telegram_env)
         self.alpaca_client = AlpacaClient(alpaca_env, settings)
-        self.scheduler = BlockingScheduler(timezone=settings.tz)
+        self.scheduler = SafeBlockingScheduler(timezone=settings.tz)
         self.telegram_bot.send_message(msg=f"🔆 {settings.bot_name} is running!")
 
     def run(self) -> None:

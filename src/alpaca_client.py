@@ -67,8 +67,22 @@ class AlpacaClient:
             raise RuntimeError(f"Ticker price is unavailable for `{ticker}`!")
         return ticker_price
 
-    def get_expiration_date(self) -> date:
-        return date.today() + timedelta(days=(4 - date.today().weekday()) % 7 or 7)
+    def get_expiration_date(self, ticker: str) -> date:
+        friday = date.today() + timedelta(days=(4 - date.today().weekday()) % 7 or 7)
+        for offset in range((friday - date.today()).days + 1):
+            candidate = friday - timedelta(days=offset)
+            contracts = self.client.get_option_contracts(
+                GetOptionContractsRequest(
+                    underlying_symbols=[ticker],
+                    expiration_date=candidate,
+                    limit=1,
+                )
+            )
+            if getattr(contracts, "option_contracts", None):
+                if candidate != friday:
+                    logger.info(f"No contracts for {friday}, using {candidate} instead")
+                return candidate
+        raise RuntimeError(f"No option expiration dates found for `{ticker}`!")
 
     def have_option_contracts(self, ticker: str) -> bool:
         """Match OCC symbols (e.g. AAPL250926C00210000) by checking that the ticker
@@ -113,7 +127,7 @@ class AlpacaClient:
             logger.debug("Options are in portfolio already, skipping options trade.")
             return None
 
-        expiration_date = self.get_expiration_date()
+        expiration_date = self.get_expiration_date(ticker)
         ticker_price = self.get_ticker_price(ticker)
 
         if float(self.positions.get(ticker, {}).get("qty") or "0") > 0:

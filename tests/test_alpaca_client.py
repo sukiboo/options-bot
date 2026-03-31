@@ -30,6 +30,12 @@ def make_client(settings_overrides=None):
 
 
 class TestGetExpirationDate:
+    @staticmethod
+    def _contracts(has_contracts=True):
+        mock = MagicMock()
+        mock.option_contracts = [MagicMock()] if has_contracts else []
+        return mock
+
     @pytest.mark.parametrize(
         "today, expected",
         [
@@ -44,10 +50,35 @@ class TestGetExpirationDate:
     )
     def test_expiration_date(self, today, expected):
         client = make_client()
+        client.client.get_option_contracts.return_value = self._contracts()
         with patch("src.alpaca_client.date") as mock_date:
             mock_date.today.return_value = today
             mock_date.side_effect = lambda *a, **kw: date(*a, **kw)
-            assert client.get_expiration_date() == expected
+            assert client.get_expiration_date("AAPL") == expected
+
+    def test_falls_back_on_holiday(self):
+        client = make_client()
+        thursday = date(2026, 4, 2)
+
+        def fake_get_contracts(req):
+            mock = MagicMock()
+            mock.option_contracts = [MagicMock()] if req.expiration_date == thursday else []
+            return mock
+
+        client.client.get_option_contracts.side_effect = fake_get_contracts
+        with patch("src.alpaca_client.date") as mock_date:
+            mock_date.today.return_value = date(2026, 3, 31)  # Tuesday
+            mock_date.side_effect = lambda *a, **kw: date(*a, **kw)
+            assert client.get_expiration_date("SOXL") == thursday
+
+    def test_no_contracts_raises(self):
+        client = make_client()
+        client.client.get_option_contracts.return_value = self._contracts(has_contracts=False)
+        with patch("src.alpaca_client.date") as mock_date:
+            mock_date.today.return_value = date(2026, 3, 31)
+            mock_date.side_effect = lambda *a, **kw: date(*a, **kw)
+            with pytest.raises(RuntimeError, match="No option expiration dates found"):
+                client.get_expiration_date("SOXL")
 
 
 class TestStrikePriceCalculation:

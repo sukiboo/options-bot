@@ -4,6 +4,7 @@ from datetime import date
 from unittest.mock import MagicMock, PropertyMock, patch
 
 import pytest
+from alpaca.trading.enums import OrderSide, PositionSide
 
 from src.schemas import AlpacaEnv, Settings
 
@@ -163,3 +164,84 @@ class TestSellCoveredPuts:
         ):
             client.sell_covered_puts("AAPL", date(2025, 9, 26), 190.0)
         client.submit_sell_order.assert_called_once_with("AAPL250926P00190000", 2)
+
+
+class TestSignedQty:
+    def test_short_is_negative(self):
+        from src.alpaca_client import _signed_qty
+
+        p = MagicMock()
+        p.qty = "20"
+        p.side = PositionSide.SHORT
+        assert _signed_qty(p) == "-20"
+
+    def test_long_is_positive(self):
+        from src.alpaca_client import _signed_qty
+
+        p = MagicMock()
+        p.qty = "100"
+        p.side = PositionSide.LONG
+        assert _signed_qty(p) == "100"
+
+    def test_short_already_negative(self):
+        from src.alpaca_client import _signed_qty
+
+        p = MagicMock()
+        p.qty = "-20"
+        p.side = PositionSide.SHORT
+        assert _signed_qty(p) == "-20"
+
+
+class TestTradeOptions:
+    def _filled_order(self, symbol: str, side: OrderSide) -> MagicMock:
+        order = MagicMock()
+        order.symbol = symbol
+        order.qty = 2
+        order.filled_avg_price = 1.23
+        order.status = "filled"
+        order.side = side
+        return order
+
+    def test_returns_sell_side_for_covered_call(self):
+        from src.alpaca_client import AlpacaClient
+
+        client = make_client()
+        client.have_option_contracts = MagicMock(return_value=False)
+        client.get_expiration_date = MagicMock(return_value=date(2025, 9, 26))
+        client.get_ticker_price = MagicMock(return_value=200.0)
+        client.sell_covered_calls = MagicMock(return_value=MagicMock())
+        client.wait_for_fill = MagicMock(
+            return_value=self._filled_order("AAPL250926C00210000", OrderSide.SELL)
+        )
+        positions = {"AAPL": {"qty": "200", "price": "200.0"}}
+
+        with patch.object(
+            AlpacaClient, "positions", new_callable=PropertyMock, return_value=positions
+        ):
+            trade = client.trade_options()
+
+        assert trade is not None
+        assert trade["type"] == "call"
+        assert trade["side"] == "sell"
+
+    def test_returns_sell_side_for_covered_put(self):
+        from src.alpaca_client import AlpacaClient
+
+        client = make_client()
+        client.have_option_contracts = MagicMock(return_value=False)
+        client.get_expiration_date = MagicMock(return_value=date(2025, 9, 26))
+        client.get_ticker_price = MagicMock(return_value=200.0)
+        client.sell_covered_puts = MagicMock(return_value=MagicMock())
+        client.wait_for_fill = MagicMock(
+            return_value=self._filled_order("AAPL250926P00190000", OrderSide.SELL)
+        )
+        positions = {"AAPL": {"qty": "0", "price": "200.0"}, "USD": {"qty": "50000"}}
+
+        with patch.object(
+            AlpacaClient, "positions", new_callable=PropertyMock, return_value=positions
+        ):
+            trade = client.trade_options()
+
+        assert trade is not None
+        assert trade["type"] == "put"
+        assert trade["side"] == "sell"

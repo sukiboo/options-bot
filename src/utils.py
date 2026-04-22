@@ -7,9 +7,23 @@ from datetime import datetime, timezone
 from logging.handlers import TimedRotatingFileHandler
 from typing import Any, Callable
 
+from apscheduler.schedulers.base import STATE_STOPPED
+from apscheduler.schedulers.blocking import BlockingScheduler
+
+MAX_SCHEDULER_WAIT = 3600
+
+
+class SafeBlockingScheduler(BlockingScheduler):
+    def _main_loop(self) -> None:  # type: ignore[override]
+        wait_seconds = MAX_SCHEDULER_WAIT
+        while self.state != STATE_STOPPED:  # type: ignore[attr-defined]
+            self._event.wait(wait_seconds)  # type: ignore[attr-defined]
+            self._event.clear()  # type: ignore[attr-defined]
+            wait_seconds = min(self._process_jobs() or MAX_SCHEDULER_WAIT, MAX_SCHEDULER_WAIT)
+
 
 class cached_property_ttl:
-    """A property descriptor with time-based caching. Usage: @cached_property_ttl(ttl=60)"""
+    """A property descriptor with time-based caching. Usage: @cached_property_ttl(ttl=60)."""
 
     def __init__(self, ttl: float) -> None:
         self.ttl = ttl

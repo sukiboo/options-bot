@@ -13,6 +13,7 @@ from alpaca.trading.enums import (
     ContractType,
     OrderSide,
     OrderStatus,
+    PositionSide,
     TimeInForce,
 )
 from alpaca.trading.models import OptionContract, Order, Position, TradeAccount
@@ -22,6 +23,13 @@ from src.schemas import AlpacaEnv, Settings
 from src.utils import cached_property_ttl
 
 logger = logging.getLogger()
+
+
+def _signed_qty(p: Position) -> str:
+    q = abs(float(p.qty))
+    if p.side == PositionSide.SHORT:
+        q = -q
+    return str(int(q)) if q.is_integer() else str(q)
 
 
 class AlpacaClient:
@@ -45,7 +53,7 @@ class AlpacaClient:
             **{str(self.account.currency): {"qty": str(self.account.cash), "price": "1.00"}},
             **{ticker: {"qty": "0", "price": str(self.get_ticker_price(ticker))}},
             **{
-                str(p.symbol): {"qty": str(p.qty), "price": str(p.current_price)}
+                str(p.symbol): {"qty": _signed_qty(p), "price": str(p.current_price)}
                 for p in cast(list[Position], self.client.get_all_positions())
             },
         }
@@ -146,8 +154,11 @@ class AlpacaClient:
         if filled_order is None:
             return None
 
+        self._ttl_positions = None  # force refresh so reports reflect the new contract
+
         return {
             "type": option_type,
+            "side": cast(OrderSide, filled_order.side).value,
             "symbol": filled_order.symbol,
             "qty": filled_order.qty,
             "filled_avg_price": float(filled_order.filled_avg_price or 0),

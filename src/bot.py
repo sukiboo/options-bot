@@ -1,27 +1,24 @@
 from __future__ import annotations
 
+import json
 import logging
 
-from apscheduler.schedulers.base import STATE_STOPPED
-from apscheduler.schedulers.blocking import BlockingScheduler
 from apscheduler.triggers.cron import CronTrigger
 
 from src.alpaca_client import AlpacaClient
 from src.schemas import AlpacaEnv, Settings, TelegramEnv
 from src.telegram_bot import TelegramBot
+from src.utils import SafeBlockingScheduler
 
 logger = logging.getLogger()
 
-MAX_SCHEDULER_WAIT = 3600
 
-
-class SafeBlockingScheduler(BlockingScheduler):
-    def _main_loop(self) -> None:  # type: ignore[override]
-        wait_seconds = MAX_SCHEDULER_WAIT
-        while self.state != STATE_STOPPED:  # type: ignore[attr-defined]
-            self._event.wait(wait_seconds)  # type: ignore[attr-defined]
-            self._event.clear()  # type: ignore[attr-defined]
-            wait_seconds = min(self._process_jobs() or MAX_SCHEDULER_WAIT, MAX_SCHEDULER_WAIT)
+def _format_position(symbol: str, data: dict, currency: str) -> str:
+    qty = data["qty"] or "0"
+    if symbol == currency:
+        return f"${float(qty):,.2f}"
+    price = float(data["price"] or 0)
+    return f"{qty} x ${price:,.2f}"
 
 
 class OptionsBot:
@@ -82,19 +79,26 @@ class OptionsBot:
             self.report_value(telegram=telegram)
 
     def report_trade(self, trade: dict, telegram: bool = False) -> None:
-        msg = f"order: {trade['symbol']} x{trade['qty']} @ ${trade['filled_avg_price']:,.2f}"
-        logger.info(msg)
+        logger.info(json.dumps({"trade": trade}))
         if telegram:
+            msg = (
+                f"{trade['side']} {trade['symbol']} x {trade['qty']}"
+                f" @ ${trade['filled_avg_price']:,.2f}"
+            )
             self.telegram_bot.send_message(msg=f"🤝 {msg}")
 
     def report_positions(self, telegram: bool = False) -> None:
-        msg = f"positions: {self.alpaca_client.positions}"
-        logger.info(msg)
+        positions = self.alpaca_client.positions
+        logger.info(json.dumps({"positions": positions}))
         if telegram:
-            self.telegram_bot.send_message(msg=f"📑 {msg}")
+            currency = str(self.alpaca_client.account.currency)
+            rows = "\n".join(
+                f"  {s}: {_format_position(s, d, currency)}," for s, d in positions.items()
+            )
+            self.telegram_bot.send_message(msg=f"💰 positions: {{\n{rows}\n}}")
 
     def report_value(self, telegram: bool = False) -> None:
-        msg = f"portfolio value: ${self.alpaca_client.portfolio_value:,.2f}"
-        logger.info(msg)
+        value = self.alpaca_client.portfolio_value
+        logger.info(json.dumps({"portfolio_value": value}))
         if telegram:
-            self.telegram_bot.send_message(msg=f"💰 {msg}")
+            self.telegram_bot.send_message(msg=f"💲 portfolio value: ${value:,.2f}")
